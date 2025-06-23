@@ -1,0 +1,25 @@
+[project]
+name = "backend"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aiofiles>=24.1.0",
+    "asyncio-mqtt>=0.16.2",
+    "duckduckgo-search>=8.0.4",
+    "fastapi[standard]>=0.115.12",
+    "langchain>=0.3.25",
+    "langchain-community>=0.3.25",
+    "langchain-experimental>=0.3.4",
+    "langchain-google-genai>=2.1.5",
+    "langchain-neo4j>=0.4.0",
+    "langchain-text-splitters>=0.3.8",
+    "langgraph>=0.4.8",
+    "neo4j>=5.28.1",
+    "openai>=1.88.0",
+    "python-multipart>=0.0.20",
+    "pyyaml>=6.0.2",
+    "unstructured[md]>=0.17.2",
+    "uvicorn[standard]>=0.34.3",
+]

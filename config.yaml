@@ -1,0 +1,9 @@
+llm:
+  model: gemini-2.0-flash
+  embedding: models/text-embedding-004
+  maximum_information_acquisition_rate: 0.15
+  maximum_retriever_attempts: 2
+
+fastapi:
+  session_timeout: 3 # in minutes
+  session_timeout_check_period: 60 # in seconds
