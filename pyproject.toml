@@ -19,6 +19,7 @@ dependencies = [
     "openai>=1.88.0",
     "python-multipart>=0.0.20",
     "pyyaml>=6.0.2",
+    "slowapi>=0.1.9",
     "unstructured[md]>=0.17.2",
     "uvicorn[standard]>=0.34.3",
 ]

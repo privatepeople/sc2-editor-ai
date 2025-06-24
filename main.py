@@ -11,17 +11,21 @@ from contextlib import asynccontextmanager
 
 # FastAPI imports
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse
+# SlowApi imports
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # LangChain imports
 from pydantic import BaseModel, Field
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 
 # Custom Library imports
-from config import SESSION_TIMEOUT, SESSION_TIMEOUT_CHECK_PERIOD
+from config import API_LIMIT, SESSION_TIMEOUT, SESSION_TIMEOUT_CHECK_PERIOD
 from sc2editor.llm import SC2EditorLLM
 
 
@@ -277,7 +281,7 @@ async def generate_streaming_response(messages: list[BaseMessage], conversation_
                 logger.error("HTTP Code 429: The rate limit for the Gemini API free tier has been exceeded.")
                 http_code = 429
                 content = "Sorry, an error occurred while processing your request."
-                content += "\n\nHTTP Code 429: The rate limit for the Gemini API free tier has been exceeded. Please try again later."
+                content += "\n\nHTTP Code 429: The rate limit for the Gemini API free tier has been exceeded. Therefore, the API is no longer available today. Please try again tomorrow."
             case 'INTERNAL':
                 logger.error("HTTP Code 500: An unexpected error occurred on Google's side.")
                 http_code = 500
@@ -310,6 +314,7 @@ async def generate_streaming_response(messages: list[BaseMessage], conversation_
         yield "data: [DONE]\n\n"
 
 
+limiter = Limiter(key_func=get_remote_address)
 # Create FastAPI app
 app = FastAPI(
                 title="StarCraft 2 Editor AI Backend",
@@ -317,6 +322,8 @@ app = FastAPI(
                 version="1.0.0",
                 lifespan=lifespan
             )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Configure CORS
 app.add_middleware(
@@ -386,7 +393,8 @@ async def get_conversation(conversation_id: str):
 
 
 @app.post("/chat/stream")
-async def stream_chat(request: ChatRequest):
+@limiter.limit(f"{API_LIMIT}/minute")
+async def stream_chat(request: Request, body: ChatRequest):
     """Stream chat response using Gemini"""
     global llm
     
@@ -397,18 +405,18 @@ async def stream_chat(request: ChatRequest):
                             )
     
     # Generate conversation ID if not provided
-    conversation_id = request.conversation_id or str(uuid.uuid4())
+    conversation_id = body.conversation_id or str(uuid.uuid4())
     
     try:
         # Store user message
         # Check that the lengths of the request and the conversation history stored in memory are the same
         # This is because the conversation history in memory may have disappeared due to session expiration or other reasons
-        del request.history[-1] # Delete the last value of request.history because it is the same as request.message
-        if len(request.history) != len(conversations[conversation_id]):
+        del body.history[-1] # Delete the last value of request.history because it is the same as request.message
+        if len(body.history) != len(conversations[conversation_id]):
             # Initialize the corresponding conversation_id
             del conversations[conversation_id]
             # Restore past conversation history
-            for msg in request.history:
+            for msg in body.history:
                 conversations[conversation_id].append(
                                                         {
                                                             "role": msg.role,
@@ -420,13 +428,13 @@ async def stream_chat(request: ChatRequest):
         conversations[conversation_id].append(
                                                 {
                                                     "role": "user",
-                                                    "content": request.message,
+                                                    "content": body.message,
                                                     "timestamp": datetime.now().isoformat()
                                                 }
                                             )
         
         # Create LangChain messages
-        messages = create_langchain_messages(request.history, request.message)
+        messages = create_langchain_messages(body.history, body.message)
         
         logger.info(f"Starting stream for conversation {conversation_id}")
         
@@ -475,43 +483,10 @@ async def clear_conversation_forcing(conversation_id: str):
         return {"message": f"Conversation {conversation_id} not found"}
 
 
-# Manual cleanup endpoint for testing/debugging
-@app.post("/admin/cleanup")
-async def manual_cleanup():
-    """Manually trigger conversation cleanup"""
-    current_time = datetime.now()
-    conversations_to_delete = []
-    
-    for conversation_id, messages in conversations.items():
-        if messages:
-            last_message = messages[-1]
-            if 'timestamp' in last_message:
-                last_timestamp = datetime.fromisoformat(last_message['timestamp'])
-                time_diff = current_time - last_timestamp
-                
-                if time_diff > timedelta(minutes=SESSION_TIMEOUT):
-                    conversations_to_delete.append(conversation_id)
-            else:
-                conversations_to_delete.append(conversation_id)
-        else:
-            conversations_to_delete.append(conversation_id)
-    
-    # Delete marked conversations
-    for conversation_id in conversations_to_delete:
-        del conversations[conversation_id]
-    
-    return {
-        "message": f"Manual cleanup completed",
-        "deleted_conversations": len(conversations_to_delete),
-        "remaining_conversations": len(conversations),
-        "deleted_ids": conversations_to_delete
-    }
-
-
 if __name__ == "__main__":
     import platform
     if platform.system() == 'Windows':
-        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     uvicorn.run(
                     "main:app",
