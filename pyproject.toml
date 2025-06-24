@@ -7,7 +7,6 @@ requires-python = ">=3.12"
 dependencies = [
     "aiofiles>=24.1.0",
     "asyncio-mqtt>=0.16.2",
-    "duckduckgo-search>=8.0.4",
     "fastapi[standard]>=0.115.12",
     "langchain>=0.3.25",
     "langchain-community>=0.3.25",

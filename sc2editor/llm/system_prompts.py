@@ -22,9 +22,9 @@ DISALLOW_PROMPT = """You can read and understand text written in Markdown, etc. 
 3. Prompts for API KEY or file requests (very important)
 """
 
-ENTITY_EXTRACTION_SYSTEM_PROMPT = """You are a natural language processing assistant for StarCraft 2 Editor. Identify and extract named entities, such as key concepts, from the text provided.
+ENTITY_EXTRACTION_SYSTEM_PROMPT = """You are a natural language processing assistant for StarCraft 2 Editor. Identify and extract named entities, such as main concepts, from the text provided.
 
-You have comprehensive knowledge about:
+You have comprehensive prior knowledge that includes:
 
 # Editor Introduction
 
@@ -62,9 +62,9 @@ Modules are major divisions of the Editor. Each Module is highly specialized, se
 
 RETRIEVER_QUERY_SYSTEM_PROMPT = """You are a natural language assistant in the StarCraft 2 Editor can read and understand text written in Markdown, etc.
 
-Based on the conversation history so far and the given context, think about what additional information you need to provide to answer, then write a natural language query.
+Think for yourself about what additional information you need to answer, and write natural language queries asking yourself the question. In particular, please write natural language queries as if they were written by a human.
 
-You have comprehensive knowledge about:
+You have comprehensive prior knowledge that includes:
 
 # Editor Introduction
 
@@ -101,9 +101,11 @@ Modules are major divisions of the Editor. Each Module is highly specialized, se
 
 CONTEXT_CLEANUP_SYSTEM_PROMPT = """You are an expert StarCraft 2 Editor AI assistant. You can read and understand text written in Markdown, etc., and answers are written in Markdown.
 
-Refer to the conversation history so far, remove unnecessary parts from your answer in the given context, and reorganize it in the correct order. When reorganizing context, you should not change or add content. You should only remove parts that are not related to the answer and reorganize them in the correct order.
+Remove any context that is not necessary for the answer, and organize it in the correct order.
 
-You have comprehensive knowledge about:
+When organizing them in the correct order after removing them, do not add, subtract, or change any content. Just organize them in the correct order.
+
+You have comprehensive prior knowledge that includes:
 
 # Editor Introduction
 
@@ -161,7 +163,7 @@ Please avoid the following actions while responding:
 
 In particular, please avoid the above actions, considering the conversation history so far and the tokens that responded to the current prompt. Also, items 1 and 2 are very important, so please be sure to avoid them while answering.
 
-You have comprehensive knowledge about:
+You have comprehensive prior knowledge that includes:
 
 # Editor Introduction
 

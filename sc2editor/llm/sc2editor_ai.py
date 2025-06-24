@@ -234,7 +234,8 @@ class SC2EditorLLM:
                                                         ),
                                                         (
                                                             'human',
-                                                            "{message}"
+                                                            "Please identify and extract named entities such as main concepts from the text below.\n\n"
+                                                            "Text:\n{message}"
                                                         )
                                                     ]
                                                 )
@@ -250,11 +251,10 @@ class SC2EditorLLM:
                                                             ),
                                                             (
                                                                 'human',
-                                                                "Please write a natural language query necessary for the answer based on the context and the conversation history so far.\n\n"
+                                                                "Please write a natural language query for additional information needed to answer based on your knowledge, the conversation history so far, and the given context. In particular, please write only natural language queries.\n\n"
                                                                 "Context:\n{context}\n\n"
                                                                 "Conversation History:\n{messages}"
                                                             )
-                                                            
                                                         ]
                                                     )
         self._retriever_query_node_chain = retriever_query_prompt | retriever_query_model
@@ -269,7 +269,7 @@ class SC2EditorLLM:
                                                             ),
                                                             (
                                                                 'human',
-                                                                "Please refer to the conversation history so far and organize unnecessary context in your answer.\n\n"
+                                                                "Based on the conversation history so far and your knowledge, please remove and organize any context that is not necessary for the answer.\n\n"
                                                                 "Conversation History:\n{messages}\n\n"
                                                                 "Context:\n{context}"
                                                             )
@@ -301,16 +301,17 @@ class SC2EditorLLM:
         answer_model = ChatGoogleGenerativeAI(model=MODEL, temperature=0.3, api_key=self.google_api_key)
         answer_prompt = ChatPromptTemplate.from_messages(
                                                     [
-                                                        SystemMessage(
-                                                                        (
-                                                                            f"{SC2_EDITOR_AI_SYSTEM_PROMPT}"
-                                                                            "\n\n"
-                                                                            "Additional Context:"
-                                                                            "\n"
-                                                                            "{context}"
-                                                                        )
-                                                                    ),
+                                                        (
+                                                            'system',
+                                                            SC2_EDITOR_AI_SYSTEM_PROMPT
+                                                        ),
                                                         MessagesPlaceholder('messages'),
+                                                        (
+                                                            'human',
+                                                            "Please answer the questions based on your knowledge, the conversation history so far, and the given context.\n\n"
+                                                            "Context:\n{context}\n\n"
+                                                            "Question:\n{question}"
+                                                        )
                                                     ]
                                                 )
         self._answer_node_chain = answer_prompt | answer_model
@@ -504,7 +505,7 @@ class SC2EditorLLM:
                 return 'retriever_attempt_node'
     
     async def _answer_node(self, state: State) -> State:
-        res = await self._answer_node_chain.ainvoke({'context': state['context'], 'messages': state['messages']})
+        res = await self._answer_node_chain.ainvoke({'messages': state['messages'][:-1], 'context': state['context'], 'question': state['messages'][-1].content})
 
         return {'answer': res.content}
     
