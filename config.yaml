@@ -5,6 +5,6 @@ llm:
   maximum_retriever_attempts: 2
 
 fastapi:
-  api_limit: 1 # in minutes
-  session_timeout: 3 # in minutes
-  session_timeout_check_period: 60 # in seconds
+  api_limit: 1 # per minutes
+  session_timeout: 3 # per minutes
+  session_timeout_check_period: 60 # per seconds
