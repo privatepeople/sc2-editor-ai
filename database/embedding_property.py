@@ -28,7 +28,6 @@ def main(embedding: str, url: str, username: str, password: str):
         url: Neo4j Database URL
         username: The username of Neo4j Database account
         password: The password of Neo4j Database account
-    
     """
     # Add embedding property
     vector_index = Neo4jVector.from_existing_graph(
