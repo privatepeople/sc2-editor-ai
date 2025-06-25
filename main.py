@@ -126,7 +126,8 @@ async def lifespan(app: FastAPI):
     yield
     
     # Shutdown
-    llm.close()
+    if llm:
+        llm.close()
     logger.info("Shutting down StarCraft 2 Editor AI Backend...")
     
     # Cancel cleanup task
@@ -221,16 +222,18 @@ async def generate_streaming_response(messages: list[BaseMessage], conversation_
         # This is because the conversation history in memory may have disappeared due to session expiration or other reasons
         if len(messages) != len(conversations[conversation_id]):
             # Initialize the corresponding conversation_id
-            del conversations[conversation_id]
+            if conversation_id in conversations:
+                del conversations[conversation_id]
             # Restore past conversation history
             for msg in messages:
-                if type(msg) == HumanMessage:
+                if isinstance(msg, HumanMessage):
                     role = "user"
-                elif type(msg) == AIMessage:
+                elif isinstance(msg, AIMessage):
                     role = "assistant"
                 else:
                     continue
-                content = msg.text()
+                
+                content = msg.content
 
                 conversations[conversation_id].append(
                                                         {
@@ -257,59 +260,62 @@ async def generate_streaming_response(messages: list[BaseMessage], conversation_
         yield "data: [DONE]\n\n"
         
     except Exception as e:
-        match type(e).__name__:
-            case 'INVALID_ARGUMENT':
-                logger.error("HTTP Code 400: The request body is malformed.")
-                http_code = 400
-                content = "Sorry, an error occurred while processing your request."
-                content += "\n\nHTTP Code 400: The request body of the Gemini API is invalid."
-            case 'FAILED_PRECONDITION':
-                logger.error("HTTP Code 400: Gemini API free tier is not available in server country. Please enable billing on your project in Google AI Studio.")
-                http_code = 400
-                content = "Sorry, an error occurred while processing your request."
-                content += "\n\nHTTP Code 400: Gemini API free tier is not available in server country. Please enable billing on your project in Google AI Studio."
-            case 'PERMISSION_DENIED':
-                logger.error("HTTP Code 403: API key doesn't have the required permissions.")
-                http_code = 403
-                content = "Sorry, an error occurred while processing your request."
-                content += "\n\nHTTP Code 403: API key doesn't have the required permissions."
-            case 'NOT_FOUND':
-                logger.error("HTTP Code 404: The requested resource wasn't found.")
-                http_code = 404
-                content = "Sorry, an error occurred while processing your request."
-                content += "\n\nHTTP Code 404: The requested resource wasn't found."
-            case 'RESOURCE_EXHAUSTED':
-                logger.error("HTTP Code 429: The rate limit for the Gemini API free tier has been exceeded.")
-                http_code = 429
-                content = "Sorry, an error occurred while processing your request."
-                content += "\n\nHTTP Code 429: The rate limit for the Gemini API free tier has been exceeded. Therefore, the API is no longer available today. Please try again tomorrow."
-            case 'INTERNAL':
-                logger.error("HTTP Code 500: An unexpected error occurred on Google's side.")
-                http_code = 500
-                content = "Sorry, an error occurred while processing your request."
-                content += "\n\nHTTP Code 500: An unexpected error occurred on Google's side."
-            case 'UNAVAILABLE':
-                logger.error("HTTP Code 503: The service may be temporarily overloaded or down.")
-                http_code = 503
-                content = "Sorry, an error occurred while processing your request."
-                content += "\n\nHTTP Code 503: The Gemini API service may be temporarily overloaded or down."
-            case 'DEADLINE_EXCEEDED':
-                logger.error("HTTP Code 504: The service is unable to finish processing within the deadline.")
-                http_code = 504
-                content = "Sorry, an error occurred while processing your request."
-                content += "\n\nHTTP Code 504: The Gemini API service could not be processed within the deadline."
-            case _:
-                http_code = 500
-                content = "I apologize, but I encountered an error while processing your request. Please try again."
-        logger.error(f"Error generating streaming response: {e}")
+        # Improved error handling with proper exception type checking
+        error_type = type(e).__name__
+        error_message = str(e)
+        
+        # Map common Google API errors to appropriate HTTP codes and messages
+        error_mappings = {
+                        'InvalidArgument': {
+                            'http_code': 400,
+                            'message': "The request body is malformed."
+                        },
+                        'PreconditionFailed': {
+                            'http_code': 400,
+                            'message': "Gemini API free tier is not available in server country. Please enable billing on your project in Google AI Studio."
+                        },
+                        'PermissionDenied': {
+                            'http_code': 403,
+                            'message': "API key doesn't have the required permissions."
+                        },
+                        'NotFound': {
+                            'http_code': 404,
+                            'message': "The requested resource wasn't found."
+                        },
+                        'ResourceExhausted': {
+                            'http_code': 429,
+                            'message': "The rate limit for the Gemini API free tier has been exceeded. The API is no longer available today. Please try again tomorrow."
+                        },
+                        'InternalServerError': {
+                            'http_code': 500,
+                            'message': "An unexpected error occurred on Google's side."
+                        },
+                        'ServiceUnavailable': {
+                            'http_code': 503,
+                            'message': "The Gemini API service may be temporarily overloaded or down. Please try again later."
+                        },
+                        'DeadlineExceeded': {
+                            'http_code': 504,
+                            'message': "The Gemini API service could not be processed within the deadline."
+                        }
+                    }
+        
+        error_info = error_mappings.get(error_type, {
+                                                        'http_code': 500,
+                                                        'message': "I apologize, but I encountered an error while processing your request. Please try again."
+                                                    })
+        
+        logger.error(f"Error generating streaming response ({error_type}): {error_message}")
+        
+        content = f"Sorry, an error occurred while processing your request.\n\nHTTP Code {error_info['http_code']}: {error_info['message']}"
 
         # Send error message
         error_data = {
                         'content': content,
                         'conversation_id': conversation_id,
                         'error': True,
-                        'error_message': str(e),
-                        'HTTP_CODE': http_code
+                        'error_message': error_message,
+                        'HTTP_CODE': error_info['http_code']
                     }
         yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
         yield "data: [DONE]\n\n"
@@ -412,12 +418,20 @@ async def stream_chat(request: Request, body: ChatRequest):
         # Store user message
         # Check that the lengths of the body and the conversation history stored in memory are the same
         # This is because the conversation history in memory may have disappeared due to session expiration or other reasons
-        del body.history[-1] # Delete the last value of body.history because it is the same as body.message
-        if len(body.history) != len(conversations[conversation_id]):
+        
+        # Create a copy of history to avoid modifying the original
+        history_copy = body.history.copy() if body.history else []
+        
+        # Remove the last item if it exists and matches the current message
+        if history_copy and history_copy[-1].content == body.message:
+            del history_copy[-1]
+        
+        if len(history_copy) != len(conversations[conversation_id]):
             # Initialize the corresponding conversation_id
-            del conversations[conversation_id]
+            if conversation_id in conversations:
+                del conversations[conversation_id]
             # Restore past conversation history
-            for msg in body.history:
+            for msg in history_copy:
                 conversations[conversation_id].append(
                                                         {
                                                             "role": msg.role,
@@ -434,8 +448,8 @@ async def stream_chat(request: Request, body: ChatRequest):
                                                 }
                                             )
         
-        # Create LangChain messages
-        messages = create_langchain_messages(body.history, body.message)
+        # Create LangChain messages using the copied history
+        messages = create_langchain_messages(history_copy, body.message)
         
         logger.info(f"Starting stream for conversation {conversation_id}")
         
@@ -485,10 +499,6 @@ async def clear_conversation_forcing(conversation_id: str):
 
 
 if __name__ == "__main__":
-    import platform
-    if platform.system() == 'Windows':
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
     uvicorn.run(
                     "main:app",
                     host="127.0.0.1",
