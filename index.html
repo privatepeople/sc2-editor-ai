@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="./images/Starcraft-2-Editor.png"/>
+    <title>StarCraft 2 Editor AI</title>
+    <!-- Add marked.js for markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Add highlight.js for code syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+            color: #ffffff;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        /* Header - Always visible */
+        .header {
+            padding: 1rem 2rem;
+            border-bottom: 1px solid #333;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 20;
+            flex-shrink: 0; /* Prevent header from shrinking */
+        }
+
+        .header h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #00d4ff;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .header-logo {
+            width: 2.0rem;
+            height: 2.0rem;
+            object-fit: contain;
+        }
+
+        .github-link {
+            display: flex;
+            align-items: center;
+            text-decoration: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .github-link:hover {
+            opacity: 0.7;
+        }
+
+        .github-icon {
+            width: 1.4rem;
+            height: 1.4rem;
+            fill: #ffffff;
+        }
+
+        /* Content Area - Contains both welcome and chat interfaces */
+        .content-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            min-height: 0; /* Allow flex child to shrink below content size */
+        }
+
+        /* Welcome Screen */
+        .welcome-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            background: inherit;
+            transition: opacity 0.5s ease-out, visibility 0.5s ease-out;
+        }
+
+        .welcome-screen.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .welcome-title {
+            font-size: 3rem;
+            font-weight: 700;
+            background: linear-gradient(45deg, #00d4ff, #ff6b35, #f7931e);
+            background-size: 200% 200%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: gradientShift 3s ease-in-out infinite;
+            margin-bottom: 2rem;
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .welcome-subtitle {
+            font-size: 1.2rem;
+            color: #a0a0a0;
+            margin-bottom: 3rem;
+            text-align: center;
+        }
+
+        /* Chat Interface - FIXED LAYOUT */
+        .chat-interface {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.5s ease-in, visibility 0.5s ease-in;
+            min-height: 0; /* Allow flex child to shrink */
+        }
+
+        .chat-interface.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Messages Area - FIXED HEIGHT CONSTRAINT */
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            min-height: 0; /* Critical: allows container to shrink below content size */
+        }
+
+        .message {
+            display: flex;
+            gap: 1rem;
+            max-width: 800px;
+            margin: 0 auto 1.5rem auto;
+            width: 100%;
+            animation: messageSlideIn 0.3s ease-out;
+        }
+
+        @keyframes messageSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            flex-direction: row-reverse;
+            justify-content: flex-start;
+            margin-left: auto;
+            margin-right: 0;
+            max-width: 70%;
+        }
+
+        .message.ai {
+            justify-content: flex-start;
+            margin-left: 0;
+            margin-right: auto;
+            max-width: 85%;
+        }
+
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .message.user .message-avatar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .message.ai .message-avatar {
+            background: linear-gradient(135deg, #00d4ff 0%, #ff6b35 100%);
+            color: white;
+        }
+
+        .message-content {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1rem;
+            padding: 1rem 1.5rem;
+            backdrop-filter: blur(10px);
+            line-height: 1.6;
+            word-wrap: break-word;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            hyphens: auto;
+            min-width: 0;
+            max-width: 100%;
+            width: auto;
+            display: inline-block;
+            overflow: hidden;
+        }
+
+        .message.user .message-content {
+            background: rgba(102, 126, 234, 0.15);
+            border-color: rgba(102, 126, 234, 0.4);
+            border-radius: 1rem 1rem 0.25rem 1rem;
+        }
+
+        .message.ai .message-content {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.1);
+            border-radius: 1rem 1rem 1rem 0.25rem;
+        }
+
+        /* FIXED: Proper Markdown Styling with Paragraph Spacing */
+        .message-content h1,
+        .message-content h2,
+        .message-content h3,
+        .message-content h4,
+        .message-content h5,
+        .message-content h6 {
+            color: #00d4ff;
+            margin: 0.5rem 0;
+        }
+
+        /* CRITICAL FIX: Proper paragraph spacing */
+        .message-content p {
+            margin: 0.75rem 0;
+        }
+
+        .message-content p:first-child {
+            margin-top: 0;
+        }
+
+        .message-content p:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Ensure paragraphs with line breaks are properly spaced */
+        .message-content p + p {
+            margin-top: 1rem;
+        }
+
+        .message-content code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.3rem;
+            font-family: 'Courier New', monospace;
+            color: #ff6b35;
+        }
+
+        .message-content pre {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin: 0.75rem 0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .message-content pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+
+        .message-content blockquote {
+            border-left: 3px solid #00d4ff;
+            padding-left: 1rem;
+            margin: 0.75rem 0;
+            opacity: 0.8;
+        }
+
+        .message-content ul,
+        .message-content ol {
+            padding-left: 1.5rem;
+            margin: 0.75rem 0;
+        }
+
+        .message-content li {
+            margin: 0.25rem 0;
+        }
+
+        .message-content a {
+            color: #00d4ff;
+            text-decoration: none;
+        }
+
+        .message-content a:hover {
+            text-decoration: underline;
+        }
+
+        .message-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 0.75rem 0;
+        }
+
+        .message-content th,
+        .message-content td {
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 0.5rem;
+            text-align: left;
+        }
+
+        .message-content th {
+            background: rgba(0, 212, 255, 0.1);
+        }
+
+        /* Streaming indicator */
+        .streaming-cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1.2em;
+            background: #00d4ff;
+            animation: blink 1s infinite;
+            margin-left: 2px;
+            vertical-align: text-bottom;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        /* Typing indicator */
+        .typing-animation {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .typing-animation span {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #00d4ff;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+
+        .typing-animation span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-animation span:nth-child(2) { animation-delay: -0.16s; }
+        .typing-animation span:nth-child(3) { animation-delay: 0s; }
+
+        @keyframes typing {
+            0%, 80%, 100% {
+                transform: scale(0.8);
+                opacity: 0.5;
+            }
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        /* Input Area - FIXED TO BOTTOM */
+        .input-container {
+            padding: 2rem;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid #333;
+            flex-shrink: 0; /* Prevent input area from shrinking */
+        }
+
+        .input-wrapper {
+            max-width: 800px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .welcome-screen .input-wrapper {
+            max-width: 1000px;
+            width: 90%;
+        }
+
+        /* input field container */
+        .input-field-container {
+            position: relative;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 2rem;
+            transition: all 0.3s ease;
+        }
+
+        .input-field-container:focus-within {
+            border-color: #00d4ff;
+            box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.2);
+        }
+
+        .input-field {
+            width: 100%;
+            background: transparent;
+            border: none;
+            border-radius: 2rem 2rem 0 0;
+            padding: 1rem 1.5rem 0.25rem 1.5rem;
+            color: white;
+            font-size: 1rem;
+            outline: none;
+            resize: none;
+            min-height: 40px;
+            max-height: 150px;
+            font-family: inherit;
+            overflow-y: auto;
+            overflow-x: hidden;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+        }
+
+        /* Webkit scrollbar styling for textarea - INTEGRATED DESIGN */
+        .input-field::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .input-field::-webkit-scrollbar-track {
+            background: transparent;
+            border-radius: 3px;
+        }
+
+        .input-field::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 3px;
+        }
+
+        .input-field::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        .input-field::-webkit-scrollbar-corner {
+            background: transparent;
+        }
+
+        .input-field::placeholder {
+            color: #a0a0a0;
+        }
+
+        /* Button area at the bottom */
+        .button-area {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 1.5rem;
+            background: transparent;
+        }
+
+        /* Search button (disabled) */
+        .search-button {
+            background: none;
+            border: none;
+            color: #666;
+            cursor: not-allowed;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .search-button:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        /* Tooltip for disabled search button */
+        .search-button::after {
+            content: "Search feature is disabled";
+            position: absolute;
+            bottom: 120%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 0.8rem;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .search-button::before {
+            content: "";
+            position: absolute;
+            bottom: 110%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 5px solid rgba(0, 0, 0, 0.9);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .search-button:hover::after,
+        .search-button:hover::before {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .search-icon {
+            width: 16px;
+            height: 16px;
+            stroke: currentColor;
+        }
+
+        /* Send button positioned in button area */
+        .send-button {
+            background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            opacity: 0.7;
+        }
+
+        .send-button svg {
+            width: 24px;
+            height: 24px;
+            display: block;
+        }
+
+        .send-button:hover {
+            opacity: 1;
+            transform: scale(1.1);
+        }
+
+        .send-button:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            transform: scale(1);
+        }
+
+        /* Disclaimer */
+        .disclaimer {
+            text-align: center;
+            color: #888;
+            font-size: 0.85rem;
+            margin-top: 1rem;
+            padding: 0 1rem;
+            line-height: 1.4;
+        }
+
+        /* Scrollbar for messages container */
+        .messages-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .messages-container::-webkit-scrollbar-track {
+            background: #1F2937;
+            border-radius: 3px;
+        }
+
+        .messages-container::-webkit-scrollbar-thumb {
+            background: #353F4D;
+            border-radius: 3px;
+        }
+
+        .messages-container::-webkit-scrollbar-thumb:hover {
+            background: #4B5563;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .welcome-title {
+                font-size: 2rem;
+            }
+            
+            .input-container {
+                padding: 1rem;
+            }
+            
+            .messages-container {
+                padding: 1rem;
+            }
+            
+            .header {
+                padding: 1rem;
+            }
+            
+            .message.user {
+                max-width: 85%;
+            }
+            
+            .message.ai {
+                max-width: 90%;
+            }
+            
+            .message-content {
+                padding: 0.75rem 1rem;
+            }
+
+            .disclaimer {
+                font-size: 0.8rem;
+                margin-top: 0.75rem;
+            }
+
+            .github-icon {
+                width: 1rem;
+                height: 1rem;
+            }
+
+            .header h1 {
+                font-size: 1.1rem;
+                gap: 0.5rem;
+            }
+
+            .header-logo {
+                width: 1.1rem;
+                height: 1.1rem;
+            }
+
+            .button-area {
+                padding: 0.4rem 1rem;
+            }
+
+            .search-button {
+                font-size: 0.8rem;
+                padding: 0.4rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header - Always visible -->
+        <div class="header">
+            <h1>
+                <img src="./images/Starcraft-2-Editor.png" alt="StarCraft 2 Editor" class="header-logo">
+                StarCraft 2 Editor AI
+            </h1>
+            <a href="https://github.com/privatepeople?tab=repositories" class="github-link" target="_blank" rel="noopener noreferrer", title="Github Repository">
+                <svg class="github-icon" viewBox="0 0 24 24">
+                    <path d="M12 0C5.374 0 0 5.373 0 12 0 17.302 3.438 21.8 8.207 23.387c.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/>
+                </svg>
+            </a>
+        </div>
+
+        <!-- Content Area -->
+        <div class="content-area">
+            <!-- Welcome Screen -->
+            <div class="welcome-screen" id="welcomeScreen">
+                <h1 class="welcome-title">Welcome to StarCraft 2<br>Editor AI</h1>
+                
+                <div class="input-wrapper">
+                    <div class="input-field-container">
+                        <textarea 
+                            class="input-field" 
+                            id="welcomeInput"
+                            placeholder="Ask me anything about StarCraft 2 Editor..."
+                            rows="1"
+                        ></textarea>
+                        <div class="button-area">
+                            <button class="search-button" disabled>
+                                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <path d="m21 21-4.35-4.35"></path>
+                                </svg>
+                                Search
+                            </button>
+                            <button class="send-button" id="welcomeSendBtn">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                    <line x1="12" y1="20" x2="12" y2="6"></line>
+                                    <polyline points="6 12, 12 6, 18 12"></polyline>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="disclaimer">
+                    The StarCraft 2 Editor AI uses 'Free Tier of the Gemini API', so it has usage restrictions. Therefore, it may not respond.
+                    <br>
+                    This website is not an official Blizzard website.
+                </div>
+            </div>
+
+            <!-- Chat Interface -->
+            <div class="chat-interface" id="chatInterface">
+                <div class="messages-container" id="messagesContainer">
+                    <!-- Messages will be dynamically added here -->
+                </div>
+                
+                <div class="input-container">
+                    <div class="input-wrapper">
+                        <div class="input-field-container">
+                            <textarea 
+                                class="input-field" 
+                                id="chatInput"
+                                placeholder="Ask me anything about StarCraft 2 Editor..."
+                                rows="1"
+                            ></textarea>
+                            <div class="button-area">
+                                <button class="search-button" disabled>
+                                    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="11" cy="11" r="8"></circle>
+                                        <path d="m21 21-4.35-4.35"></path>
+                                    </svg>
+                                    Search
+                                </button>
+                                <button class="send-button" id="chatSendBtn">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                        <line x1="12" y1="20" x2="12" y2="6"></line>
+                                        <polyline points="6 12, 12 6, 18 12"></polyline>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="disclaimer">
+                        StarCraft 2 Editor AI can convey incorrect information. Therefore, please use it with caution.
+                        <br>
+                        This website is not an official Blizzard website.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class StarCraftChatUI {
+            constructor() {
+                this.welcomeScreen = document.getElementById('welcomeScreen');
+                this.chatInterface = document.getElementById('chatInterface');
+                this.welcomeInput = document.getElementById('welcomeInput');
+                this.chatInput = document.getElementById('chatInput');
+                this.messagesContainer = document.getElementById('messagesContainer');
+                this.welcomeSendBtn = document.getElementById('welcomeSendBtn');
+                this.chatSendBtn = document.getElementById('chatSendBtn');
+                
+                this.isFirstMessage = true;
+                this.messages = []; // Store conversation history
+                this.conversationId = null;
+                this.apiBaseUrl = 'http://127.0.0.1:8080';
+                this.isLoading = false;
+                this.currentStreamingMessage = null;
+                
+                // Configure marked for markdown rendering
+                if (typeof marked !== 'undefined') {
+                    marked.setOptions({
+                        highlight: function(code, lang) {
+                            if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
+                                try {
+                                    return hljs.highlight(code, { language: lang }).value;
+                                } catch (err) {
+                                    return code;
+                                }
+                            }
+                            return code;
+                        },
+                        breaks: true,
+                        gfm: true
+                    });
+                }
+                
+                this.init();
+            }
+            
+            init() {
+                // Event listeners for welcome screen
+                this.welcomeInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.handleWelcomeSubmit();
+                    }
+                });
+                
+                this.welcomeSendBtn.addEventListener('click', () => {
+                    this.handleWelcomeSubmit();
+                });
+                
+                // Event listeners for chat interface
+                this.chatInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.handleChatSubmit();
+                    }
+                });
+                
+                this.chatSendBtn.addEventListener('click', () => {
+                    this.handleChatSubmit();
+                });
+                
+                // Auto-resize textareas
+                this.setupAutoResize(this.welcomeInput);
+                this.setupAutoResize(this.chatInput);
+
+                // PAGE REFRESH/EXIT - Fixed event listeners
+                window.addEventListener('beforeunload', () => {
+                    this.handlePageExit();
+                });
+                
+                window.addEventListener('pagehide', () => {
+                    this.handlePageExit();
+                });
+            }
+            
+            setupAutoResize(textarea) {
+                textarea.addEventListener('input', () => {
+                    textarea.style.height = 'auto';
+                    textarea.style.height = Math.min(textarea.scrollHeight, 150) + 'px';
+                });
+            }
+            
+            handleWelcomeSubmit() {
+                const message = this.welcomeInput.value.trim();
+                if (!message || this.isLoading) return;
+                
+                this.addMessage(message, 'user');
+                this.transitionToChat();
+                this.sendMessageToAPI(message);
+                
+                this.welcomeInput.value = '';
+            }
+            
+            handleChatSubmit() {
+                const message = this.chatInput.value.trim();
+                if (!message || this.isLoading) return;
+                
+                this.addMessage(message, 'user');
+                this.sendMessageToAPI(message);
+                
+                this.chatInput.value = '';
+                this.chatInput.style.height = 'auto';
+            }
+            
+            async sendMessageToAPI(message) {
+                this.setLoading(true);
+                
+                try {
+                    // Prepare conversation history
+                    const conversationHistory = this.messages.map(msg => ({
+                        role: msg.type === 'user' ? 'user' : 'assistant',
+                        content: msg.content
+                    }));
+                    
+                    const response = await fetch(`${this.apiBaseUrl}/chat/stream`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            message: message,
+                            conversation_id: this.conversationId,
+                            history: conversationHistory
+                        })
+                    });
+                    
+                    // Check for HTTP errors BEFORE processing the stream
+                    if (!response.ok) {
+                        // Only call getFallbackResponse with actual HTTP status codes
+                        setTimeout(() => {
+                            const fallbackResponse = this.getFallbackResponse(message, response.status);
+                            this.addMessage(fallbackResponse, 'ai');
+                            this.setLoading(false);
+                        }, 800);
+                        return; // Exit early on HTTP errors
+                    }
+                    
+                    // Handle streaming response only if HTTP status is OK
+                    await this.handleStreamingResponse(response);
+                    
+                } catch (error) {
+                    console.error('Error sending message to API:', error);
+                    
+                    // For network/connection errors, don't pass a status code
+                    setTimeout(() => {
+                        const fallbackResponse = this.getFallbackResponse(message); // No status code for network errors
+                        this.addMessage(fallbackResponse, 'ai');
+                        this.setLoading(false);
+                    }, 800);
+                }
+            }
+            
+            async handleStreamingResponse(response) {
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                
+                // Create AI message container for streaming
+                const aiMessageDiv = this.createStreamingMessage();
+                let accumulatedContent = '';
+                let buffer = '';
+                
+                try {
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        
+                        if (done) {
+                            console.log('Stream completed normally');
+                            break;
+                        }
+                        
+                        // Decode the chunk and add to buffer
+                        const chunk = decoder.decode(value, { stream: true });
+                        buffer += chunk;
+                        
+                        // Process complete lines
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+                        
+                        for (const line of lines) {
+                            if (line.trim() === '') continue; // Skip empty lines
+                            
+                            if (line.startsWith('data: ')) {
+                                const data = line.slice(6).trim();
+                                
+                                if (data === '[DONE]') {
+                                    console.log('Received [DONE] signal');
+                                    this.finalizeStreamingMessage(aiMessageDiv, accumulatedContent);
+                                    this.setLoading(false);
+                                    return;
+                                }
+                                
+                                if (data && data !== '') {
+                                    try {
+                                        const parsed = JSON.parse(data);
+                                        
+                                        if (parsed.conversation_id) {
+                                            this.conversationId = parsed.conversation_id;
+                                        }
+                                        
+                                        if (parsed.content) {
+                                            accumulatedContent += parsed.content;
+                                            this.updateStreamingMessage(aiMessageDiv, accumulatedContent);
+                                        }
+                                        
+                                        if (parsed.error) {
+                                            console.error('Streaming error:', parsed);
+                                            const errorMessage = parsed.content || parsed.error || 'An error occurred during streaming';
+                                            this.finalizeStreamingMessage(aiMessageDiv, errorMessage);
+                                            this.setLoading(false);
+                                            return;
+                                        }
+                                        
+                                        if (parsed.status === 'connected') {
+                                            console.log('Stream connection confirmed');
+                                        }
+                                        
+                                    } catch (parseError) {
+                                        console.warn('Failed to parse JSON:', data, parseError);
+                                        // Continue processing other lines instead of failing completely
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Handle case where stream ends without [DONE]
+                    if (accumulatedContent) {
+                        console.log('Stream ended without [DONE], finalizing with accumulated content');
+                        this.finalizeStreamingMessage(aiMessageDiv, accumulatedContent);
+                    } else {
+                        console.log('Stream ended with no content');
+                        this.finalizeStreamingMessage(aiMessageDiv, 'No response received. Please try again.');
+                    }
+                    this.setLoading(false);
+                    
+                } catch (error) {
+                    console.error('Error reading stream:', error);
+                    
+                    // For streaming errors, provide a generic message without fallback to API error codes
+                    const errorMessage = accumulatedContent || 'Connection was interrupted. Please try again.';
+                    this.finalizeStreamingMessage(aiMessageDiv, errorMessage);
+                    this.setLoading(false);
+                } finally {
+                    // Clean up reader
+                    try {
+                        if (reader && !reader.closed) {
+                            reader.releaseLock();
+                        }
+                    } catch (e) {
+                        console.debug('Reader cleanup handled:', e.message);
+                    }
+                }
+            }
+            
+            createStreamingMessage() {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message ai';
+                
+                const avatar = document.createElement('div');
+                avatar.className = 'message-avatar';
+                avatar.textContent = 'AI';
+                
+                const messageContent = document.createElement('div');
+                messageContent.className = 'message-content';
+                messageContent.innerHTML = '<span class="streaming-cursor"></span>';
+                
+                messageDiv.appendChild(avatar);
+                messageDiv.appendChild(messageContent);
+                
+                this.messagesContainer.appendChild(messageDiv);
+                this.scrollToBottom();
+                
+                this.currentStreamingMessage = messageDiv;
+                return messageDiv;
+            }
+            
+            updateStreamingMessage(messageDiv, content) {
+                const messageContent = messageDiv.querySelector('.message-content');
+                
+                // Process escaped newlines before rendering markdown
+                const processedContent = content.replace(/\\n/g, '  \n');
+                
+                // Render markdown and add streaming cursor
+                if (typeof marked !== 'undefined') {
+                    try {
+                        messageContent.innerHTML = marked.parse(processedContent) + '<span class="streaming-cursor"></span>';
+                    } catch (error) {
+                        console.warn('Markdown parsing error:', error);
+                        messageContent.innerHTML = this.formatMessage(processedContent) + '<span class="streaming-cursor"></span>';
+                    }
+                } else {
+                    messageContent.innerHTML = this.formatMessage(processedContent) + '<span class="streaming-cursor"></span>';
+                }
+                
+                // Highlight code blocks if hljs is available
+                if (typeof hljs !== 'undefined') {
+                    messageContent.querySelectorAll('pre code').forEach((block) => {
+                        try {
+                            hljs.highlightElement(block);
+                        } catch (error) {
+                            console.warn('Code highlighting error:', error);
+                        }
+                    });
+                }
+                
+                this.scrollToBottom();
+            }
+
+            finalizeStreamingMessage(messageDiv, content) {
+                const messageContent = messageDiv.querySelector('.message-content');
+                
+                // Process escaped newlines before rendering markdown
+                const processedContent = content.replace(/\\n/g, '  \n');
+                
+                // Remove streaming cursor and finalize content
+                if (typeof marked !== 'undefined') {
+                    try {
+                        messageContent.innerHTML = marked.parse(processedContent);
+                    } catch (error) {
+                        console.warn('Markdown parsing error:', error);
+                        messageContent.innerHTML = this.formatMessage(processedContent);
+                    }
+                } else {
+                    messageContent.innerHTML = this.formatMessage(processedContent);
+                }
+                
+                // Highlight code blocks if hljs is available
+                if (typeof hljs !== 'undefined') {
+                    messageContent.querySelectorAll('pre code').forEach((block) => {
+                        try {
+                            hljs.highlightElement(block);
+                        } catch (error) {
+                            console.warn('Code highlighting error:', error);
+                        }
+                    });
+                }
+                
+                // Add to messages history - store the processed content
+                this.messages.push({ 
+                    content: processedContent, 
+                    type: 'ai', 
+                    timestamp: Date.now() 
+                });
+                
+                this.currentStreamingMessage = null;
+                this.scrollToBottom();
+            }
+            
+            setLoading(loading) {
+                this.isLoading = loading;
+                this.welcomeSendBtn.disabled = loading;
+                this.chatSendBtn.disabled = loading;
+                
+                if (loading && !this.currentStreamingMessage) {
+                    this.addTypingIndicator();
+                } else if (!loading) {
+                    this.removeTypingIndicator();
+                }
+            }
+            
+            addTypingIndicator() {
+                // Remove existing typing indicator first
+                this.removeTypingIndicator();
+                
+                const typingDiv = document.createElement('div');
+                typingDiv.className = 'message ai typing-indicator';
+                typingDiv.id = 'typingIndicator';
+                
+                const avatar = document.createElement('div');
+                avatar.className = 'message-avatar';
+                avatar.textContent = 'AI';
+                
+                const messageContent = document.createElement('div');
+                messageContent.className = 'message-content';
+                messageContent.innerHTML = '<div class="typing-animation"><span></span><span></span><span></span></div>';
+                
+                typingDiv.appendChild(avatar);
+                typingDiv.appendChild(messageContent);
+                
+                this.messagesContainer.appendChild(typingDiv);
+                this.scrollToBottom();
+            }
+            
+            removeTypingIndicator() {
+                const typingIndicator = document.getElementById('typingIndicator');
+                if (typingIndicator) {
+                    typingIndicator.remove();
+                }
+            }
+            
+            getFallbackResponse(message, statusCode = null) {
+                // Only show 429 message for actual HTTP 429 responses
+                if (statusCode === 429) {
+                    return "I am designed to allow only one API request per minute, including all users. Please try again later.";
+                }
+                
+                // For other HTTP errors or no status code (network errors)
+                return "Failed to connect to FastAPI server. Please contact the operator.";
+            }
+            
+            transitionToChat() {
+                this.welcomeScreen.classList.add('hidden');
+                
+                setTimeout(() => {
+                    this.chatInterface.classList.add('visible');
+                    this.chatInput.focus();
+                }, 500);
+            }
+            
+            addMessage(content, type) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${type}`;
+                
+                const avatar = document.createElement('div');
+                avatar.className = 'message-avatar';
+                avatar.textContent = type === 'user' ? 'U' : 'AI';
+                
+                const messageContent = document.createElement('div');
+                messageContent.className = 'message-content';
+                
+                // Handle markdown rendering for AI responses
+                if (type === 'ai' && typeof marked !== 'undefined') {
+                    // Process escaped newlines before rendering markdown
+                    const processedContent = content.replace(/\\n/g, '  \n');
+                    try {
+                        messageContent.innerHTML = marked.parse(processedContent);
+                    } catch (error) {
+                        console.warn('Markdown parsing error:', error);
+                        messageContent.innerHTML = this.formatMessage(processedContent);
+                    }
+                    
+                    // Highlight code blocks if hljs is available
+                    if (typeof hljs !== 'undefined') {
+                        messageContent.querySelectorAll('pre code').forEach((block) => {
+                            try {
+                                hljs.highlightElement(block);
+                            } catch (error) {
+                                console.warn('Code highlighting error:', error);
+                            }
+                        });
+                    }
+                } else if (type === 'ai') {
+                    // Fallback formatting if marked is not available
+                    const processedContent = content.replace(/\\n/g, '  \n');
+                    messageContent.innerHTML = this.formatMessage(processedContent);
+                } else {
+                    messageContent.textContent = content;
+                }
+                
+                messageDiv.appendChild(avatar);
+                messageDiv.appendChild(messageContent);
+                
+                this.messagesContainer.appendChild(messageDiv);
+                this.scrollToBottom();
+                
+                this.messages.push({ content, type, timestamp: Date.now() });
+            }
+            
+            formatMessage(content) {
+                // Simple markdown-like formatting fallback
+                return content
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                    .replace(/`(.*?)`/g, '<code>$1</code>')
+                    .replace(/\\n/g, '  \n')
+                    .replace(/\n• /g, '<br>• ')
+                    .replace(/\n\n/g, '<br><br>')
+                    .replace(/\n/g, '<br>');
+            }
+            
+            scrollToBottom() {
+                // Use requestAnimationFrame to ensure DOM updates are complete
+                requestAnimationFrame(() => {
+                    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                });
+            }
+
+            handlePageExit() {
+                // Only make API call if we have a conversation ID
+                if (this.conversationId) {
+                    try {
+                        // Use sendBeacon for reliable delivery during page unload
+                        const url = `${this.apiBaseUrl}/conversations/delete/${this.conversationId}`;
+                        
+                        // sendBeacon is preferred for unload events as it's more reliable
+                        if (navigator.sendBeacon) {
+                            const success = navigator.sendBeacon(url);
+                            console.debug('sendBeacon result:', success);
+                        } else {
+                            // Fallback for browsers that don't support sendBeacon
+                            fetch(`${this.apiBaseUrl}/conversations/${this.conversationId}`, {
+                                method: 'DELETE',
+                                keepalive: true // Keeps request alive during page unload
+                            }).catch(error => {
+                                // Silently handle errors during page exit
+                                console.warn('Failed to notify server of page exit:', error);
+                            });
+                        }
+                    } catch (error) {
+                        // Silently handle any errors
+                        console.warn('Error in handlePageExit:', error);
+                    }
+                }
+            }
+        }
+
+        // Initialize the chat UI when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new StarCraftChatUI();
+        });
+    </script>
+</body>
+</html>
