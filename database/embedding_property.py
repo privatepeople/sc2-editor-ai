@@ -15,24 +15,34 @@ from langchain_neo4j import Neo4jVector
 
 # Custom Library imports
 from utils import print_time
-from config import GOOGLE_API_KEY, EMBEDDING, NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
+from config import get_settings
 
 
 @print_time
-def main():
-    """Main Function to add embedding properties to Neo4j Database."""
+def main(embedding: str, url: str, username: str, password: str):
+    """
+    Main Function to add embedding properties to Neo4j Database.
+    
+    Args:
+        embedding: Gemini Embedding Model
+        url: Neo4j Database URL
+        username: The username of Neo4j Database account
+        password: The password of Neo4j Database account
+    
+    """
     # Add embedding property
     vector_index = Neo4jVector.from_existing_graph(
-                                                    GoogleGenerativeAIEmbeddings(model=EMBEDDING, api_key=GOOGLE_API_KEY),
+                                                    GoogleGenerativeAIEmbeddings(model=embedding),
                                                     search_type="hybrid",
                                                     node_label="Document",
                                                     text_node_properties=["text"],
                                                     embedding_node_property="embedding",
-                                                    url=NEO4J_URI,
-                                                    username=NEO4J_USERNAME,
-                                                    password=NEO4J_PASSWORD,
+                                                    url=url,
+                                                    username=username,
+                                                    password=password,
                                                 )
 
 
 if __name__ == "__main__":
-    main()
+    settings = get_settings()
+    main(embedding=settings.llm.embedding, url=settings.neo4j_uri, username=settings.neo4j_username, password=settings.neo4j_password)

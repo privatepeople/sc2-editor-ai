@@ -7,6 +7,7 @@ This module has utility functions that can be used in many places such as FastAP
 # Python Standard Library imports
 import time
 from datetime import datetime
+from typing import Any
 from pathlib import Path
 from functools import wraps
 
@@ -14,7 +15,7 @@ from functools import wraps
 import yaml
 
 
-def load_config() -> dict[str, str | int | float]:
+def load_config() -> dict[str, Any]:
     """
     Function to load configuration from config.yaml file.
     

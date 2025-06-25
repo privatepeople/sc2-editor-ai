@@ -16,18 +16,21 @@ from langchain_neo4j import Neo4jGraph
 
 # Custom Library imports
 from utils import print_time
-from config import GOOGLE_API_KEY, MODEL, NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
+from config import get_settings
 from sc2editor.text_splitters import markdown_load_split
 
 
-def setup_llm_and_transformer() -> tuple[ChatGoogleGenerativeAI, LLMGraphTransformer]:
+def setup_llm_and_transformer(model: str) -> tuple[ChatGoogleGenerativeAI, LLMGraphTransformer]:
     """
     Function to set up LLM and Graph Transformer objects.
+
+    Args:
+        model: Gemini LLM Model
     
     Returns:
         Returns a tuple of LLM and GraphTransformers that use the LLM.
     """
-    llm = ChatGoogleGenerativeAI(model=MODEL, temperature=0, api_key=GOOGLE_API_KEY)
+    llm = ChatGoogleGenerativeAI(model=model, temperature=0)
     llm_transformer = LLMGraphTransformer(llm=llm)
     
     return llm, llm_transformer
@@ -64,10 +67,18 @@ def query_database_stats(graph: Neo4jGraph) -> tuple[dict[str, int], dict[str, i
 
 
 @print_time
-def main():
-    """Main Function to split text in Markdown document and add it to Neo4j Database."""
+def main(model: str, url: str, username: str, password: str):
+    """
+    Main Function to split text in Markdown document and add it to Neo4j Database.
+    
+    Args:
+        model: Gemini LLM Model
+        url: Neo4j Database URL
+        username: The username of Neo4j Database account
+        password: The password of Neo4j Database account
+    """
     # Set up LLM and Graph Transformer
-    llm, llm_transformer = setup_llm_and_transformer()
+    llm, llm_transformer = setup_llm_and_transformer(model=model)
     
     # Load and preprocess documents
     documents = markdown_load_split()
@@ -76,7 +87,7 @@ def main():
     graph_documents = llm_transformer.convert_to_graph_documents(documents)
     
     # Get Neo4j credentials and create connection
-    graph = Neo4jGraph(NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD)
+    graph = Neo4jGraph(url, username, password)
     
     # Add Graph Documents to Graph Database
     graph.add_graph_documents(
@@ -97,4 +108,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    settings = get_settings()
+    main(model=settings.llm.model, url=settings.neo4j_uri, username=settings.neo4j_username, password=settings.neo4j_password)

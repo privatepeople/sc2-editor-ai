@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 
 # Custom Library imports
-from config import API_LIMIT, SESSION_TIMEOUT, SESSION_TIMEOUT_CHECK_PERIOD
+from config import get_settings
 from sc2editor.llm import SC2EditorLLM
 
 
@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 conversations = defaultdict(list)
 llm = None
 cleanup_task = None
+fastapi_settings = get_settings().fastapi
 
 
 # Pydantic models
@@ -119,7 +120,7 @@ async def lifespan(app: FastAPI):
         raise
     
     # Start background cleanup task
-    cleanup_task = asyncio.create_task(cleanup_old_conversations(period=SESSION_TIMEOUT_CHECK_PERIOD, session_timeout=SESSION_TIMEOUT))
+    cleanup_task = asyncio.create_task(cleanup_old_conversations(period=fastapi_settings.session_timeout_check_period, session_timeout=fastapi_settings.session_timeout))
     logger.info("Background cleanup task started")
     
     yield
@@ -393,7 +394,7 @@ async def get_conversation(conversation_id: str):
 
 
 @app.post("/chat/stream")
-@limiter.limit(f"{API_LIMIT}/minute")
+@limiter.limit(f"{fastapi_settings.api_limit}/minute")
 async def stream_chat(request: Request, body: ChatRequest):
     """Stream chat response using Gemini"""
     global llm
@@ -409,9 +410,9 @@ async def stream_chat(request: Request, body: ChatRequest):
     
     try:
         # Store user message
-        # Check that the lengths of the request and the conversation history stored in memory are the same
+        # Check that the lengths of the body and the conversation history stored in memory are the same
         # This is because the conversation history in memory may have disappeared due to session expiration or other reasons
-        del body.history[-1] # Delete the last value of request.history because it is the same as request.message
+        del body.history[-1] # Delete the last value of body.history because it is the same as body.message
         if len(body.history) != len(conversations[conversation_id]):
             # Initialize the corresponding conversation_id
             del conversations[conversation_id]

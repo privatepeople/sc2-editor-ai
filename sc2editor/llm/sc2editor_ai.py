@@ -8,7 +8,7 @@ Note that after finishing the LLM answer, you must initialize the graph state wi
 
 # Python Standard Library imports
 from math import floor
-from typing import Annotated, Literal, TypedDict, AsyncIterator, Any
+from typing import Annotated, Optional, Union, Literal, TypedDict, AsyncIterator, Any
 
 # Third-party Library imports
 from pydantic import BaseModel, Field
@@ -20,7 +20,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langchain_neo4j import Neo4jGraph, Neo4jVector
 
 # Custom Library imports
-from config import *
+from config import get_settings
 from sc2editor.llm.system_prompts import *
 
 
@@ -62,31 +62,29 @@ class State(TypedDict):
 class SC2EditorLLM:
     """SC2 Editor LLM system that handles database connections, retrieval, and conversation processing."""
     
-    def __init__(self, neo4j_uri: str = NEO4J_URI, neo4j_username: str = NEO4J_USERNAME, 
-                 neo4j_password: str = NEO4J_PASSWORD, google_api_key: str = GOOGLE_API_KEY,
-                 model: str = MODEL, embedding_model: str = EMBEDDING,
-                 maximum_information_acquisition_rate: int | float = MAXIMUM_INFORMATION_ACQUISITION_RATE, maximum_retriever_attempts: int = MAXIMUM_RETRIEVER_ATTEMPTS):
+    def __init__(self, neo4j_uri: Optional[str] = None, neo4j_username: Optional[str] = None, neo4j_password: Optional[str] = None,
+                 model: Optional[str] = None, embedding: Optional[str] = None,
+                 maximum_information_acquisition_rate: Optional[Union[int, float]] = None, maximum_retriever_attempts: Optional[int] = None):
         """
         Initialize the SC2EditorLLM with database connections and models.
         
         Args:
-            neo4j_uri: Neo4j database URI
-            neo4j_username: Neo4j username
-            neo4j_password: Neo4j password
-            google_api_key: Google API key for LLM and embeddings
-            model: Google Generative AI model name
-            embedding_model: Embedding model name
+            neo4j_uri: Neo4j Database URL
+            neo4j_username: The username of Neo4j Database account
+            neo4j_password: The password of Neo4j Database account
+            model: Gemini LLM Model
+            embedding: Gemini Embedding Model
             maximum_information_acquisition_rate: Maximum information rate obtained from retriever (Values ​​from 0 to 1)
             maximum_retriever_attempts: Maximum of retriever attempts
         """
-        self.neo4j_uri = neo4j_uri
-        self.neo4j_username = neo4j_username
-        self.neo4j_password = neo4j_password
-        self.google_api_key = google_api_key
-        self.model = model
-        self.embedding_model = embedding_model
-        self.maximum_information_acquisition_rate = maximum_information_acquisition_rate
-        self.maximum_retriever_attempts = maximum_retriever_attempts
+        settings = get_settings()
+        self.neo4j_uri = neo4j_uri or settings.neo4j_uri
+        self.neo4j_username = neo4j_username or settings.neo4j_username
+        self.neo4j_password = neo4j_password or settings.neo4j_password
+        self.model = model or settings.llm.model
+        self.embedding = embedding or settings.llm.embedding
+        self.maximum_information_acquisition_rate = maximum_information_acquisition_rate or settings.llm.maximum_information_acquisition_rate
+        self.maximum_retriever_attempts = maximum_retriever_attempts or settings.llm.maximum_retriever_attempts
         
         # Initialize connections
         self.neo4j_graph = None
@@ -132,7 +130,7 @@ class SC2EditorLLM:
         additional_ratio = 0
         k = floor(self.embedding_text_count * (self.maximum_information_acquisition_rate + additional_ratio))
         self.vector_retriever = Neo4jVector.from_existing_graph(
-                                                                GoogleGenerativeAIEmbeddings(model=self.embedding_model, api_key=self.google_api_key),
+                                                                GoogleGenerativeAIEmbeddings(model=self.embedding),
                                                                 search_type="hybrid",
                                                                 node_label="Document",
                                                                 text_node_properties=["text"],
@@ -204,7 +202,7 @@ class SC2EditorLLM:
     def _create_chains(self):
         """Configures and creates all the chains to be used in the graph"""
         # router_node
-        router_model = ChatGoogleGenerativeAI(model=MODEL, temperature=0, api_key=self.google_api_key)
+        router_model = ChatGoogleGenerativeAI(model=self.model, temperature=0)
         router_prompt = ChatPromptTemplate.from_messages(
                                                         [
                                                             (
@@ -222,10 +220,10 @@ class SC2EditorLLM:
         self._router_node_chain = router_prompt | router_model.with_structured_output(Router)
 
         # disallow_node
-        self._disallow_node_chain = ChatGoogleGenerativeAI(model=MODEL, temperature=0.3, api_key=self.google_api_key)
+        self._disallow_node_chain = ChatGoogleGenerativeAI(model=self.model, temperature=0.3)
 
         # entity_extract_node
-        entity_extract_model = ChatGoogleGenerativeAI(model=MODEL, temperature=0, api_key=self.google_api_key)
+        entity_extract_model = ChatGoogleGenerativeAI(model=self.model, temperature=0)
         entity_extract_prompt = ChatPromptTemplate.from_messages(
                                                     [
                                                         (
@@ -242,7 +240,7 @@ class SC2EditorLLM:
         self._entity_extract_node_chain = entity_extract_prompt | entity_extract_model.with_structured_output(Entities)
 
         # retriever_query_node
-        retriever_query_model = ChatGoogleGenerativeAI(model=MODEL, temperature=0.3, api_key=self.google_api_key)
+        retriever_query_model = ChatGoogleGenerativeAI(model=self.model, temperature=0.3)
         retriever_query_prompt = ChatPromptTemplate.from_messages(
                                                         [
                                                             (
@@ -260,7 +258,7 @@ class SC2EditorLLM:
         self._retriever_query_node_chain = retriever_query_prompt | retriever_query_model
 
         # context_cleanup_node
-        context_cleanup_model = ChatGoogleGenerativeAI(model=MODEL, temperature=0, api_key=self.google_api_key)
+        context_cleanup_model = ChatGoogleGenerativeAI(model=self.model, temperature=0)
         context_cleanup_prompt = ChatPromptTemplate.from_messages(
                                                         [
                                                             (
@@ -279,7 +277,7 @@ class SC2EditorLLM:
         self._context_cleanup_node_chain = context_cleanup_prompt | context_cleanup_model
 
         # answer_judgment_node
-        answer_judgment_model = ChatGoogleGenerativeAI(model=MODEL, temperature=0, api_key=self.google_api_key)
+        answer_judgment_model = ChatGoogleGenerativeAI(model=self.model, temperature=0)
         answer_judgment_prompt = ChatPromptTemplate.from_messages(
                                                         [
                                                             (
@@ -298,7 +296,7 @@ class SC2EditorLLM:
         self._answer_judgment_node_chain = answer_judgment_prompt | answer_judgment_model.with_structured_output(AnswerJudgment)
 
         # answer_node
-        answer_model = ChatGoogleGenerativeAI(model=MODEL, temperature=0.3, api_key=self.google_api_key)
+        answer_model = ChatGoogleGenerativeAI(model=self.model, temperature=0.3)
         answer_prompt = ChatPromptTemplate.from_messages(
                                                     [
                                                         (

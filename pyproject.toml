@@ -17,6 +17,7 @@ dependencies = [
     "langgraph>=0.4.8",
     "neo4j>=5.28.1",
     "openai>=1.88.0",
+    "pydantic-settings>=2.9.1",
     "python-multipart>=0.0.20",
     "pyyaml>=6.0.2",
     "slowapi>=0.1.9",
