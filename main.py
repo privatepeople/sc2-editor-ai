@@ -63,7 +63,7 @@ async def cleanup_old_conversations(
     while True:
         try:
             current_time = datetime.now()
-            conversations_to_delete = []
+            conversations_to_delete = list()
             
             for conversation_id, messages in conversations.items():
                 if messages:  # Check if conversation has messages
@@ -165,7 +165,7 @@ def create_langchain_messages(
         A list consisting of HumanMessage, AIMessage
     """
 
-    messages = []
+    messages = list()
     
     # Add conversation history
     for msg in history:
@@ -194,7 +194,7 @@ async def generate_streaming_response(messages: list[BaseMessage], conversation_
     global llm
     
     try:
-        accumulated_response_list = []
+        accumulated_response_list = list()
         
         # Send initial connection confirmation
         yield f"data: {json.dumps({'conversation_id': conversation_id, 'status': 'connected'}, ensure_ascii=False)}\n\n"
@@ -444,7 +444,7 @@ async def stream_chat(request: Request, body: ChatRequest, background_tasks: Bac
         # This is because the conversation history in memory may have disappeared due to session expiration or other reasons
         
         # Create a copy of history to avoid modifying the original
-        history_copy = body.history.copy() if body.history else []
+        history_copy = body.history.copy() if body.history else list()
         
         # Remove the last item if it exists and matches the current message
         if history_copy and history_copy[-1].content == body.message:
