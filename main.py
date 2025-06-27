@@ -523,6 +523,10 @@ async def clear_conversation_forcing(conversation_id: str):
 
 
 if __name__ == "__main__":
+    import platform
+    if platform.system() == 'Windows':
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
     uvicorn.run(
                     "main:app",
                     host="127.0.0.1",

@@ -24,7 +24,7 @@ class FastAPIConfig(BaseModel):
     api_limit: int = Field(default=1, ge=1, description="API limit per minutes")
     api_limit_cooldown: int = Field(default=60, ge=1, description="API limit cooldown in seconds")
     session_timeout: int = Field(default=60, ge=1, description="Session timeout per minutes")
-    session_timeout_check_period: int = Field(default=60, ge=1, description="Check period per seconds")
+    session_timeout_check_period: int = Field(default=60, ge=1, description="Check period in seconds")
 
 
 class Settings(BaseSettings):
