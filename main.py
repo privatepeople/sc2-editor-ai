@@ -11,14 +11,10 @@ from contextlib import asynccontextmanager
 
 # FastAPI imports
 import uvicorn
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse
-# SlowApi imports
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
 
 # LangChain imports
 from pydantic import BaseModel, Field
@@ -37,6 +33,7 @@ logger = logging.getLogger(__name__)
 conversations = defaultdict(list)
 llm = None
 cleanup_task = None
+api_limit_state = False  # True when API is limited, False when available
 fastapi_settings = get_settings().fastapi
 
 
@@ -104,6 +101,21 @@ async def cleanup_old_conversations(
         await asyncio.sleep(period)
 
 
+async def api_limit_state_cooldown():
+    """API limit cooldown"""
+    global api_limit_state, fastapi_settings
+
+    additional_delay_time = 3
+    delay = fastapi_settings.api_limit_cooldown + additional_delay_time
+
+    logger.info("API limit cooldown start!")
+
+    await asyncio.sleep(delay)
+
+    api_limit_state = False
+    logger.info("API limit reset!")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events"""
@@ -168,12 +180,13 @@ def create_langchain_messages(
     return messages
 
 
-async def generate_streaming_response(messages: list[BaseMessage], conversation_id: str) -> AsyncGenerator[str, None]:
+async def generate_streaming_response(messages: list[BaseMessage], conversation_id: str, background_tasks: BackgroundTasks) -> AsyncGenerator[str, None]:
     """Generate streaming response from Gemini with proper SSE format
     
     Args:
         messages: A list consisting of HumanMessage, AIMessage
         conversation_id: Conversation history identifier id
+        background_tasks: Tasks to run in the background after response
         
     Returns:
         AsyncGenerator whose return value is a string
@@ -256,9 +269,6 @@ async def generate_streaming_response(messages: list[BaseMessage], conversation_
         llm.delete_thread_id(conversation_id)
         logger.info(f"Streaming completed for conversation {conversation_id}, total chunks: {chunk_count}")
         
-        # Send completion signal
-        yield "data: [DONE]\n\n"
-        
     except Exception as e:
         # Improved error handling with proper exception type checking
         error_type = type(e).__name__
@@ -318,10 +328,15 @@ async def generate_streaming_response(messages: list[BaseMessage], conversation_
                         'HTTP_CODE': error_info['http_code']
                     }
         yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
+
+    finally:
+        # Start API limit cooldown
+        background_tasks.add_task(api_limit_state_cooldown)
+
+        # Send completion signal
         yield "data: [DONE]\n\n"
 
 
-limiter = Limiter(key_func=get_remote_address)
 # Create FastAPI app
 app = FastAPI(
                 title="StarCraft 2 Editor AI Backend",
@@ -329,8 +344,6 @@ app = FastAPI(
                 version="1.0.0",
                 lifespan=lifespan
             )
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Configure CORS
 app.add_middleware(
@@ -400,16 +413,27 @@ async def get_conversation(conversation_id: str):
 
 
 @app.post("/chat/stream")
-@limiter.limit(f"{fastapi_settings.api_limit}/minute")
-async def stream_chat(request: Request, body: ChatRequest):
+async def stream_chat(request: Request, body: ChatRequest, background_tasks: BackgroundTasks):
     """Stream chat response using Gemini"""
-    global llm
+    global llm, api_limit_state, fastapi_settings
     
     if not llm:
         raise HTTPException(
                                 status_code=503, 
                                 detail="Gemini LLM not initialized. Please check your API key."
                             )
+    
+    # Check API limit state first
+    if api_limit_state:
+        logger.warning(f"API usage restrictions")
+        raise HTTPException(
+                                status_code=429, 
+                                detail=f"This API can be used {fastapi_settings.api_limit_cooldown} per seconds."
+                            )
+    
+    # Set API limit state
+    api_limit_state = True
+    logger.info(f"API limit activated")
     
     # Generate conversation ID if not provided
     conversation_id = body.conversation_id or str(uuid.uuid4())
@@ -455,7 +479,7 @@ async def stream_chat(request: Request, body: ChatRequest):
         
         # Return streaming response with proper SSE headers
         return StreamingResponse(
-                                    generate_streaming_response(messages, conversation_id),
+                                    generate_streaming_response(messages, conversation_id, background_tasks),
                                     media_type="text/event-stream",
                                     headers={
                                                 "Cache-Control": "no-cache",
