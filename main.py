@@ -57,8 +57,8 @@ async def cleanup_old_conversations(
     Background task to clean up old conversations
     
     Args:
-        period: Period for checking session_timeout(in seconds)
-        session_timeout: Grace period from last conversation to deletion(in minutes)
+        period: Period for checking session_timeout(seconds)
+        session_timeout: Grace period from last conversation to deletion(minutes)
     """
     while True:
         try:
@@ -428,7 +428,7 @@ async def stream_chat(request: Request, body: ChatRequest, background_tasks: Bac
         logger.warning(f"API usage restrictions")
         raise HTTPException(
                                 status_code=429, 
-                                detail=f"This API can be used {fastapi_settings.api_limit_cooldown} per seconds."
+                                detail=f"This API can only be requested {fastapi_settings.api_limit} times per minutes."
                             )
     
     # Set API limit state

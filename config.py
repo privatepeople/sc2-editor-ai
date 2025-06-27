@@ -22,9 +22,9 @@ class LLMConfig(BaseModel):
 class FastAPIConfig(BaseModel):
     """FastAPI configuration settings"""
     api_limit: int = Field(default=1, ge=1, description="API limit per minutes")
-    api_limit_cooldown: int = Field(default=60, ge=1, description="API limit cooldown in seconds")
-    session_timeout: int = Field(default=60, ge=1, description="Session timeout per minutes")
-    session_timeout_check_period: int = Field(default=60, ge=1, description="Check period in seconds")
+    api_limit_cooldown: int = Field(default=60, ge=1, description="API limit cooldown(seconds)")
+    session_timeout: int = Field(default=60, ge=1, description="Session timeout(minutes)")
+    session_timeout_check_period: int = Field(default=60, ge=1, description="Check period(seconds)")
 
 
 class Settings(BaseSettings):
@@ -43,9 +43,9 @@ class Settings(BaseSettings):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._load_yaml_config()
+        self._load_config()
     
-    def _load_yaml_config(self):
+    def _load_config(self):
         """Load configuration from config.yaml file"""
         yaml_data = load_config()
         self.llm = LLMConfig(**yaml_data['llm'])
