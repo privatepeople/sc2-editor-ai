@@ -6,6 +6,6 @@ llm:
 
 fastapi:
   api_limit: 1 # per minutes
-  api_limit_cooldown: 60 # (seconds)
-  session_timeout: 3 # (minutes)
-  session_timeout_check_period: 60 # (seconds)
+  conversation_timeout: 3 # (minutes) Be sure to change the value later!
+  conversation_timeout_period: 60 # (seconds)
+  access_token_expire: 60 # (minutes)

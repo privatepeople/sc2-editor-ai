@@ -1,24 +1,34 @@
 # Python Standard Library imports
 import asyncio
 import json
-import uuid
 import logging
-from typing import Literal
+import os
+import uuid
 from collections import defaultdict
-from datetime import datetime, timedelta
-from typing import Optional, AsyncGenerator
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
+from typing import Annotated, AsyncGenerator, Literal, Optional
 
+# Third-party Library imports
+# Password hashing and JWT imports
+import bcrypt
+import jwt
+from jwt import PyJWTError
 # FastAPI imports
 import uvicorn
-from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, status, Cookie
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, StreamingResponse
-
+from fastapi.templating import Jinja2Templates
+# SlowApi imports
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 # LangChain imports
+from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel, Field
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 
 # Custom Library imports
 from config import get_settings
@@ -33,32 +43,236 @@ logger = logging.getLogger(__name__)
 conversations = defaultdict(list)
 llm = None
 cleanup_task = None
-api_limit_state = False  # True when API is limited, False when available
 fastapi_settings = get_settings().fastapi
+
+# JWT Configuration
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+ALGORITHM = os.getenv("ALGORITHM")
+ACCESS_TOKEN_EXPIRE_MINUTES = fastapi_settings.access_token_expire
+
+# Admin credentials from environment variables
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+
+# OAuth2 scheme
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 
 # Pydantic models
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    expires_in: int = Field(description="Time left until JWT token expiration.")
+
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
+
+
+class User(BaseModel):
+    username: str
+
+
+class UserInDB(User):
+    hashed_password: bytes
+
+
 class Message(BaseModel):
     role: Literal['user', 'assistant'] = Field(description="message author.")
     content: str = Field(description="message content.")
 
 
 class ChatRequest(BaseModel):
-    message: str = Field(description="message content.")
+    message: str = Field(description="Current prompt.")
     conversation_id: Optional[str] = Field(default=None, description="Identifier of conversation history.")
     history: Optional[list[Message]] = Field(default_factory=list, description="The conversation history up to this point, including the current prompt.")
 
 
+def get_password_hash(password: str) -> bytes:
+    """
+    Hash a password using bcrypt.
+    
+    Args:
+        password: Plain text password to be hashed
+    
+    Returns:
+        Bcrypt hashed password
+    """
+    pwd_bytes = password.encode('utf-8')
+    salt = bcrypt.gensalt()
+    hashed_password = bcrypt.hashpw(password=pwd_bytes, salt=salt)
+    return hashed_password
+
+
+def verify_password(plain_password: str, hashed_password: bytes) -> bool:
+    """
+    Verify a plain password against its bcrypt hash.
+    
+    Args:
+        plain_password: Plain text password to verify
+        hashed_password: Bcrypt hashed password to compare against
+    
+    Returns:
+        True if password matches hash, False otherwise
+    """
+    password_byte_enc = plain_password.encode('utf-8')
+    return bcrypt.checkpw(password=password_byte_enc , hashed_password=hashed_password)
+
+
+def get_user(username: str) -> UserInDB | None:
+    """
+    Retrieve user information from environment variables.
+    
+    Args:
+        username: Username to look up
+    
+    Returns:
+        UserInDB object containing admin account information if username matches, None if user not found
+    """
+    if username == ADMIN_USERNAME:
+        return UserInDB(
+            username=ADMIN_USERNAME,
+            hashed_password=get_password_hash(ADMIN_PASSWORD)
+        )
+    return None
+
+
+def authenticate_user(username: str, password: str) -> bool | UserInDB:
+    """
+    Authenticate user credentials against stored user data.
+    
+    Args:
+        username: Username to authenticate
+        password: Plain text password to verify
+    
+    Returns:
+        UserInDB object if authentication successful, False if authentication fails
+    """
+    user = get_user(username)
+    if not user:
+        return False
+    if not verify_password(password, user.hashed_password):
+        return False
+    return user
+
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """
+    Create a JWT access token with expiration.
+    
+    Args:
+        data: Data to encode in the JWT payload
+        expires_delta: Custom expiration time delta. Defaults to 15 minutes if None
+    
+    Returns:
+        Encoded JWT access token
+    """
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.now() + expires_delta
+    else:
+        expire = datetime.now() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+
+def verify_token(token: str) -> TokenData | None:
+    """
+    Verify and decode JWT token.
+    
+    Args:
+        token: JWT token to verify
+    
+    Returns:
+        TokenData if token is valid, None if invalid
+    """
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            return None
+        return TokenData(username=username)
+    except PyJWTError:
+        return None
+
+
+async def get_current_user_from_token(token: str) -> UserInDB | None:
+    """
+    Extract and validate current user from JWT token.
+    
+    Args:
+        token: JWT token
+    
+    Returns:
+        Authenticated UserInDB object or None if invalid
+    """
+    token_data = verify_token(token)
+    if not token_data:
+        return None
+    
+    user = get_user(username=token_data.username)
+    if user is None:
+        return None
+    return user
+
+
+async def get_current_user(
+    authorization: Annotated[str, Depends(oauth2_scheme)] = None,
+    session_token: Annotated[str, Cookie(alias="session_token")] = None
+) -> UserInDB:
+    """
+    Extract and validate current user from JWT token (either from Authorization header or session cookie).
+    
+    Args:
+        authorization: JWT token from OAuth2 bearer scheme (Authorization header)
+        session_token: JWT token from session cookie
+    
+    Returns:
+        Authenticated UserInDB object
+    """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
+    # Try session cookie first, then authorization header
+    token = session_token or authorization
+    
+    if not token:
+        raise credentials_exception
+    
+    user = await get_current_user_from_token(token)
+    if not user:
+        raise credentials_exception
+    
+    return user
+
+
+async def get_current_active_user(current_user: Annotated[User, Depends(get_current_user)]) -> User:
+    """
+    Get current active user (wrapper function for potential future user status checks).
+    
+    Args:
+        current_user: Current authenticated user from get_current_user dependency
+    
+    Returns:
+        Current active User object
+    """
+    return current_user
+
+
 async def cleanup_old_conversations(
                                     period: int,
-                                    session_timeout: int
+                                    conversation_timeout: int
                                     ):
     """
     Background task to clean up old conversations
     
     Args:
-        period: Period for checking session_timeout(seconds)
-        session_timeout: Grace period from last conversation to deletion(minutes)
+        period: Period to check conversation timeout(seconds)
+        conversation_timeout: Grace period from last conversation to deletion(minutes)
     """
     while True:
         try:
@@ -73,8 +287,8 @@ async def cleanup_old_conversations(
                         last_timestamp = datetime.fromisoformat(last_message['timestamp'])
                         time_diff = current_time - last_timestamp
                         
-                        # If more than session_timeout have passed, mark for deletion
-                        if time_diff > timedelta(minutes=session_timeout):
+                        # If more than conversation timeout have passed, mark for deletion
+                        if time_diff > timedelta(minutes=conversation_timeout):
                             conversations_to_delete.append(conversation_id)
                             logger.info(f"Marking conversation {conversation_id} for cleanup (last activity: {time_diff} ago)")
                     else:
@@ -101,21 +315,6 @@ async def cleanup_old_conversations(
         await asyncio.sleep(period)
 
 
-async def api_limit_state_cooldown():
-    """API limit cooldown"""
-    global api_limit_state, fastapi_settings
-
-    additional_delay_time = 3
-    delay = fastapi_settings.api_limit_cooldown + additional_delay_time
-
-    logger.info("API limit cooldown start!")
-
-    await asyncio.sleep(delay)
-
-    api_limit_state = False
-    logger.info("API limit reset!")
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events"""
@@ -132,7 +331,7 @@ async def lifespan(app: FastAPI):
         raise
     
     # Start background cleanup task
-    cleanup_task = asyncio.create_task(cleanup_old_conversations(period=fastapi_settings.session_timeout_check_period, session_timeout=fastapi_settings.session_timeout))
+    cleanup_task = asyncio.create_task(cleanup_old_conversations(period=fastapi_settings.conversation_timeout_period, conversation_timeout=fastapi_settings.conversation_timeout))
     logger.info("Background cleanup task started")
     
     yield
@@ -154,7 +353,7 @@ async def lifespan(app: FastAPI):
 def create_langchain_messages(
                                 history: list[Message],
                                 current_message: str
-                            ) -> list[BaseMessage]:
+                            ) -> list[HumanMessage | AIMessage]:
     """Convert message history to LangChain format
     
     Args:
@@ -180,13 +379,12 @@ def create_langchain_messages(
     return messages
 
 
-async def generate_streaming_response(messages: list[BaseMessage], conversation_id: str, background_tasks: BackgroundTasks) -> AsyncGenerator[str, None]:
+async def generate_streaming_response(messages: list[HumanMessage | AIMessage], conversation_id: str) -> AsyncGenerator[str, None]:
     """Generate streaming response from Gemini with proper SSE format
     
     Args:
         messages: A list consisting of HumanMessage, AIMessage
         conversation_id: Conversation history identifier id
-        background_tasks: Tasks to run in the background after response
         
     Returns:
         AsyncGenerator whose return value is a string
@@ -330,9 +528,6 @@ async def generate_streaming_response(messages: list[BaseMessage], conversation_
         yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
 
     finally:
-        # Start API limit cooldown
-        background_tasks.add_task(api_limit_state_cooldown)
-
         # Send completion signal
         yield "data: [DONE]\n\n"
 
@@ -354,87 +549,77 @@ app.add_middleware(
                         allow_headers=["*"],
                     )
 
+# Always return same key to share the limit across all clients
+global_limiter = Limiter(key_func=lambda request: "global")
+
+app.state.limiter = global_limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # Mount static files directory
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-@app.get("/")
-async def root():
-    """Health check endpoint"""
-    return {
-                "message": "StarCraft 2 Editor AI Backend is running",
-                "status": "healthy",
-                "version": "1.0.0"
-            }
+templates = Jinja2Templates(directory="templates")
 
 
+@app.get("/", response_class=HTMLResponse)
+async def index_page(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_login_page(request: Request):
+    return templates.TemplateResponse("admin_login.html", {"request": request})
+
+
+# Authentication endpoints
+@app.post("/token", response_model=Token)
+async def login_for_access_token(
+                                    response: Response,
+                                    form_data: Annotated[OAuth2PasswordRequestForm, Depends()]
+                                ):
+    """Login endpoint to get JWT access token and set session cookie"""
+    user = authenticate_user(form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(data={"sub": user.username}, expires_delta=access_token_expires)
+    
+    # Set session cookie (httpOnly, secure, sameSite)
+    # Session cookie - no max_age means it expires when browser closes
+    response.set_cookie(
+                        key="session_token",
+                        value=access_token,
+                        httponly=True,  # Prevent JavaScript access
+                        secure=False,   # Set to True in production with HTTPS
+                        samesite="lax", # CSRF protection
+                    )
+    
+    logger.info(f"User {user.username} logged in successfully")
+    return {"access_token": access_token, "token_type": "bearer", "expires_in": int(access_token_expires.total_seconds())}
+
+
+@app.post("/logout")
+async def logout(response: Response):
+    """Logout endpoint to clear session cookie"""
+    response.delete_cookie(key="session_token")
+    return {"message": "Successfully logged out"}
+
+
+# Public endpoints (no authentication required)
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     return FileResponse("static/favicon.ico")
 
 
-@app.get("/health")
-async def health_check():
-    """Detailed health check"""
-    global llm
-    
-    health_status = {
-                        "status": "healthy",
-                        "timestamp": datetime.now().isoformat(),
-                        "services": {
-                                        "fastapi": "running",
-                                        "gemini_llm": "connected" if llm else "disconnected",
-                                        "cleanup_task": "running" if cleanup_task and not cleanup_task.done() else "stopped"
-                                    },
-                        "active_conversations": len(conversations)
-                    }
-    
-    return health_status
-
-
-@app.get("/conversations")
-async def list_conversations():
-    """List all conversation IDs"""
-    return {
-                "conversations": list(conversations.keys()),
-                "total": len(conversations)
-            }
-
-
-@app.get("/conversations/{conversation_id}")
-async def get_conversation(conversation_id: str):
-    """Get conversation history"""
-    if conversation_id not in conversations:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    
-    return {
-                "conversation_id": conversation_id,
-                "messages": conversations[conversation_id]
-            }
-
-
 @app.post("/chat/stream")
-async def stream_chat(request: Request, body: ChatRequest, background_tasks: BackgroundTasks):
+@global_limiter.limit(f"{fastapi_settings.api_limit}/minute")
+async def stream_chat(request: Request, body: ChatRequest):
     """Stream chat response using Gemini"""
-    global llm, api_limit_state, fastapi_settings
-    
-    if not llm:
-        raise HTTPException(
-                                status_code=503, 
-                                detail="Gemini LLM not initialized. Please check your API key."
-                            )
-    
-    # Check API limit state first
-    if api_limit_state:
-        logger.warning(f"API usage restrictions")
-        raise HTTPException(
-                                status_code=429, 
-                                detail=f"This API can only be requested {fastapi_settings.api_limit} times per minutes."
-                            )
-    
-    # Set API limit state
-    api_limit_state = True
-    logger.info(f"API limit activated")
-    
     # Generate conversation ID if not provided
     conversation_id = body.conversation_id or str(uuid.uuid4())
     
@@ -472,14 +657,13 @@ async def stream_chat(request: Request, body: ChatRequest, background_tasks: Bac
                                                 }
                                             )
         
-        # Create LangChain messages using the copied history
         messages = create_langchain_messages(history_copy, body.message)
         
         logger.info(f"Starting stream for conversation {conversation_id}")
         
         # Return streaming response with proper SSE headers
         return StreamingResponse(
-                                    generate_streaming_response(messages, conversation_id, background_tasks),
+                                    generate_streaming_response(messages, conversation_id),
                                     media_type="text/event-stream",
                                     headers={
                                                 "Cache-Control": "no-cache",
@@ -494,9 +678,11 @@ async def stream_chat(request: Request, body: ChatRequest, background_tasks: Bac
         
     except Exception as e:
         logger.error(f"Error in stream_chat: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
+# Since blocking the delete API with authentication/authorization prevents it from being deleted from memory in a timely manner,
+# causing a memory leak, it was changed to public.
 @app.delete("/conversations/{conversation_id}")
 async def clear_conversation(conversation_id: str):
     """Clear conversation history"""
@@ -504,7 +690,7 @@ async def clear_conversation(conversation_id: str):
         del conversations[conversation_id]
         return {"message": f"Conversation {conversation_id} deleted"}
     else:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
 
 # Use events such as refresh or page move/close
@@ -522,13 +708,54 @@ async def clear_conversation_forcing(conversation_id: str):
         return {"message": f"Conversation {conversation_id} not found"}
 
 
+# Protected endpoints (authentication required)
+@app.get("/health")
+async def health_check(current_user: Annotated[User, Depends(get_current_active_user)]):
+    """Detailed health check"""
+    global llm
+    
+    health_status = {
+                        "status": "healthy",
+                        "timestamp": datetime.now().isoformat(),
+                        "services": {
+                                        "fastapi": "running",
+                                        "gemini_llm": "connected" if llm else "disconnected",
+                                        "cleanup_task": "running" if cleanup_task and not cleanup_task.done() else "stopped"
+                                    },
+                        "active_conversations": len(conversations),
+                    }
+    
+    return health_status
+
+
+@app.get("/conversations")
+async def list_conversations(current_user: Annotated[User, Depends(get_current_active_user)]):
+    """List all conversation IDs"""
+    return {
+                "conversations": list(conversations.keys()),
+                "total": len(conversations)
+            }
+
+
+@app.get("/conversations/{conversation_id}")
+async def get_conversation(conversation_id: str, current_user: Annotated[User, Depends(get_current_active_user)]):
+    """Get conversation history"""
+    if conversation_id not in conversations:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+    
+    return {
+                "conversation_id": conversation_id,
+                "messages": conversations[conversation_id]
+            }
+
+
 if __name__ == "__main__":
     import platform
     if platform.system() == 'Windows':
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     uvicorn.run(
-                    "main:app",
+                    app,
                     host="127.0.0.1",
                     port=8080,
                     reload=False,

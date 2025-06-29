@@ -22,9 +22,9 @@ class LLMConfig(BaseModel):
 class FastAPIConfig(BaseModel):
     """FastAPI configuration settings"""
     api_limit: int = Field(default=1, ge=1, description="API limit per minutes")
-    api_limit_cooldown: int = Field(default=60, ge=1, description="API limit cooldown(seconds)")
-    session_timeout: int = Field(default=60, ge=1, description="Session timeout(minutes)")
-    session_timeout_check_period: int = Field(default=60, ge=1, description="Check period(seconds)")
+    conversation_timeout: int = Field(default=60, ge=1, description="Conversation timeout(minutes)")
+    conversation_timeout_period: int = Field(default=60, ge=1, description="Period to check conversation timeout(seconds)")
+    access_token_expire: int = Field(default=60, ge=1, description="Time left until ACCESS TOKEN expires(minutes)")
 
 
 class Settings(BaseSettings):
@@ -54,23 +54,10 @@ class Settings(BaseSettings):
 
 # Activate Environment variables
 load_dotenv()
-# Create a global settings instance
-settings = Settings()
 
 
 # Helper function to get settings (useful for dependency injection)
 @lru_cache
 def get_settings() -> Settings:
     """Get the global settings instance"""
-    return settings
-
-
-if __name__ == "__main__":
-    print("Configuration loaded successfully!")
-    print(f"LLM Model: {settings.llm.model}")
-    print(f"Embedding Model: {settings.llm.embedding}")
-    print(f"Max Info Acquisition Rate: {settings.llm.maximum_information_acquisition_rate}")
-    print(f"Max Retriever Attempts: {settings.llm.maximum_retriever_attempts}")
-    print(f"API Limit: {settings.fastapi.api_limit} minutes")
-    print(f"Session Timeout: {settings.fastapi.session_timeout} minutes")
-    print(f"Session Check Period: {settings.fastapi.session_timeout_check_period} seconds")
+    return Settings()
