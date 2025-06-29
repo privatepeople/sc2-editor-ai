@@ -85,6 +85,7 @@ class SC2EditorLLM:
         self.embedding = embedding or settings.llm.embedding
         self.maximum_information_acquisition_rate = maximum_information_acquisition_rate or settings.llm.maximum_information_acquisition_rate
         self.maximum_retriever_attempts = maximum_retriever_attempts or settings.llm.maximum_retriever_attempts
+        self.timeout = 30.0
         
         # Initialize connections
         self.neo4j_graph = None
@@ -202,7 +203,7 @@ class SC2EditorLLM:
     def _create_chains(self):
         """Configures and creates all the chains to be used in the graph"""
         # router_node
-        router_model = ChatGoogleGenerativeAI(model=self.model, temperature=0)
+        router_model = ChatGoogleGenerativeAI(model=self.model, temperature=0, timeout=self.timeout)
         router_prompt = ChatPromptTemplate.from_messages(
                                                         [
                                                             (
@@ -220,10 +221,10 @@ class SC2EditorLLM:
         self._router_node_chain = router_prompt | router_model.with_structured_output(Router)
 
         # disallow_node
-        self._disallow_node_chain = ChatGoogleGenerativeAI(model=self.model, temperature=0.3)
+        self._disallow_node_chain = ChatGoogleGenerativeAI(model=self.model, temperature=0.3, timeout=self.timeout)
 
         # entity_extract_node
-        entity_extract_model = ChatGoogleGenerativeAI(model=self.model, temperature=0)
+        entity_extract_model = ChatGoogleGenerativeAI(model=self.model, temperature=0, timeout=self.timeout)
         entity_extract_prompt = ChatPromptTemplate.from_messages(
                                                     [
                                                         (
@@ -240,7 +241,7 @@ class SC2EditorLLM:
         self._entity_extract_node_chain = entity_extract_prompt | entity_extract_model.with_structured_output(Entities)
 
         # retriever_query_node
-        retriever_query_model = ChatGoogleGenerativeAI(model=self.model, temperature=0.3)
+        retriever_query_model = ChatGoogleGenerativeAI(model=self.model, temperature=0.3, timeout=self.timeout)
         retriever_query_prompt = ChatPromptTemplate.from_messages(
                                                         [
                                                             (
@@ -258,7 +259,7 @@ class SC2EditorLLM:
         self._retriever_query_node_chain = retriever_query_prompt | retriever_query_model
 
         # context_cleanup_node
-        context_cleanup_model = ChatGoogleGenerativeAI(model=self.model, temperature=0)
+        context_cleanup_model = ChatGoogleGenerativeAI(model=self.model, temperature=0, timeout=self.timeout)
         context_cleanup_prompt = ChatPromptTemplate.from_messages(
                                                         [
                                                             (
@@ -277,7 +278,7 @@ class SC2EditorLLM:
         self._context_cleanup_node_chain = context_cleanup_prompt | context_cleanup_model
 
         # answer_judgment_node
-        answer_judgment_model = ChatGoogleGenerativeAI(model=self.model, temperature=0)
+        answer_judgment_model = ChatGoogleGenerativeAI(model=self.model, temperature=0, timeout=self.timeout)
         answer_judgment_prompt = ChatPromptTemplate.from_messages(
                                                         [
                                                             (
@@ -296,7 +297,7 @@ class SC2EditorLLM:
         self._answer_judgment_node_chain = answer_judgment_prompt | answer_judgment_model.with_structured_output(AnswerJudgment)
 
         # answer_node
-        answer_model = ChatGoogleGenerativeAI(model=self.model, temperature=0.3)
+        answer_model = ChatGoogleGenerativeAI(model=self.model, temperature=0.3, timeout=self.timeout)
         answer_prompt = ChatPromptTemplate.from_messages(
                                                     [
                                                         (
