@@ -463,8 +463,6 @@ async def generate_streaming_response(messages: list[HumanMessage | AIMessage], 
                                                 }
                                             )
         
-        # Graph State initialization
-        llm.delete_thread_id(conversation_id)
         logger.info(f"Streaming completed for conversation {conversation_id}, total chunks: {chunk_count}")
         
     except Exception as e:
@@ -528,6 +526,10 @@ async def generate_streaming_response(messages: list[HumanMessage | AIMessage], 
         yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
 
     finally:
+        # Graph State initialization
+        if llm.checkpointer.get({'configurable': {'thread_id': conversation_id}}):
+            llm.delete_thread_id(conversation_id)
+
         # Send completion signal
         yield "data: [DONE]\n\n"
 
