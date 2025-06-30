@@ -379,10 +379,11 @@ def create_langchain_messages(
     return messages
 
 
-async def generate_streaming_response(messages: list[HumanMessage | AIMessage], conversation_id: str) -> AsyncGenerator[str, None]:
+async def generate_streaming_response(request: Request, messages: list[HumanMessage | AIMessage], conversation_id: str) -> AsyncGenerator[str, None]:
     """Generate streaming response from Gemini with proper SSE format
     
     Args:
+        request: Request object
         messages: A list consisting of HumanMessage, AIMessage
         conversation_id: Conversation history identifier id
         
@@ -393,8 +394,11 @@ async def generate_streaming_response(messages: list[HumanMessage | AIMessage], 
     
     try:
         accumulated_response_list = list()
+        connection_flags = True
         
         # Send initial connection confirmation
+        if await request.is_disconnected():
+            raise ConnectionResetError()
         yield f"data: {json.dumps({'conversation_id': conversation_id, 'status': 'connected'}, ensure_ascii=False)}\n\n"
         
         # Add a small delay to ensure connection is established
@@ -403,6 +407,10 @@ async def generate_streaming_response(messages: list[HumanMessage | AIMessage], 
         # Stream the response
         chunk_count = 0
         async for msg, metadata in llm.astream({'messages': messages}, thread_id=conversation_id):
+            if await request.is_disconnected():
+                connection_flags = False
+                break
+
             try:
                 if metadata['langgraph_node'] in ('answer_node', 'disallow_node'):
                     content = msg.content
@@ -417,6 +425,9 @@ async def generate_streaming_response(messages: list[HumanMessage | AIMessage], 
                             }
                     
                     # Ensure proper JSON encoding
+                    if await request.is_disconnected():
+                        connection_flags = False
+                        break
                     json_data = json.dumps(data, ensure_ascii=False)
                     yield f"data: {json_data}\n\n"
                     
@@ -426,6 +437,9 @@ async def generate_streaming_response(messages: list[HumanMessage | AIMessage], 
             except Exception as chunk_error:
                 logger.error(f"Error processing chunk {chunk_count}: {chunk_error}")
                 continue
+        
+        if not connection_flags:
+            raise ConnectionResetError()
         
         accumulated_response = ''.join(accumulated_response_list)
 
@@ -523,15 +537,22 @@ async def generate_streaming_response(messages: list[HumanMessage | AIMessage], 
                         'error_message': error_message,
                         'HTTP_CODE': error_info['http_code']
                     }
-        yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
+        
+        if not (await request.is_disconnected()):
+            yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
 
     finally:
         # Graph State initialization
         if llm.checkpointer.get({'configurable': {'thread_id': conversation_id}}):
             llm.delete_thread_id(conversation_id)
+            logger.info(f"LangGraph State of Conversation ID {conversation_id} has been initialized.")
 
         # Send completion signal
-        yield "data: [DONE]\n\n"
+        if not (await request.is_disconnected()):
+            yield "data: [DONE]\n\n"
+            logger.info(f"End stream for conversation {conversation_id}")
+        else:
+            logger.error(f"Connection was closed before sending completion signal for conversation id {conversation_id}.")
 
 
 # Create FastAPI app
@@ -661,11 +682,11 @@ async def stream_chat(request: Request, body: ChatRequest):
         
         messages = create_langchain_messages(history_copy, body.message)
         
-        logger.info(f"Starting stream for conversation {conversation_id}")
+        logger.info(f"Start stream for conversation {conversation_id}")
         
         # Return streaming response with proper SSE headers
         return StreamingResponse(
-                                    generate_streaming_response(messages, conversation_id),
+                                    generate_streaming_response(request, messages, conversation_id),
                                     media_type="text/event-stream",
                                     headers={
                                                 "Cache-Control": "no-cache",
