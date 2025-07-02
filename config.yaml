@@ -3,6 +3,7 @@ llm:
   embedding: models/text-embedding-004
   maximum_information_acquisition_rate: 0.15 # (Values ​​from 0 to 1)
   maximum_retriever_attempts: 2
+  timeout: 30.0 # (seconds)
 
 fastapi:
   api_limit: 1 # per minutes

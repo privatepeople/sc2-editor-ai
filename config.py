@@ -17,6 +17,7 @@ class LLMConfig(BaseModel):
     embedding: str = Field(default="models/text-embedding-004", description="Gemini Embedding Model")
     maximum_information_acquisition_rate: Union[int, float] = Field(default=0.15, ge=0.0, le=1.0, description="Maximum data rate that can be retrieved by the retriever")
     maximum_retriever_attempts: int = Field(default=2, ge=1, description="Maximum number of retriever attempts")
+    timeout: Union[int, float] = Field(default=30.0, ge=15.0, description="Timeout for LLM requests in seconds")
 
 
 class FastAPIConfig(BaseModel):

@@ -64,7 +64,8 @@ class SC2EditorLLM:
     
     def __init__(self, neo4j_uri: Optional[str] = None, neo4j_username: Optional[str] = None, neo4j_password: Optional[str] = None,
                  model: Optional[str] = None, embedding: Optional[str] = None,
-                 maximum_information_acquisition_rate: Optional[Union[int, float]] = None, maximum_retriever_attempts: Optional[int] = None):
+                 maximum_information_acquisition_rate: Optional[Union[int, float]] = None, maximum_retriever_attempts: Optional[int] = None,
+                 timeout: Optional[Union[int, float]] = None):
         """
         Initialize the SC2EditorLLM with database connections and models.
         
@@ -76,6 +77,7 @@ class SC2EditorLLM:
             embedding: Gemini Embedding Model
             maximum_information_acquisition_rate: Maximum information rate obtained from retriever (Values ​​from 0 to 1)
             maximum_retriever_attempts: Maximum of retriever attempts
+            timeout: Timeout for LLM requests in seconds
         """
         settings = get_settings()
         self.neo4j_uri = neo4j_uri or settings.neo4j_uri
@@ -85,7 +87,7 @@ class SC2EditorLLM:
         self.embedding = embedding or settings.llm.embedding
         self.maximum_information_acquisition_rate = maximum_information_acquisition_rate or settings.llm.maximum_information_acquisition_rate
         self.maximum_retriever_attempts = maximum_retriever_attempts or settings.llm.maximum_retriever_attempts
-        self.timeout = 30.0
+        self.timeout = timeout or settings.llm.timeout
         
         # Initialize connections
         self.neo4j_graph = None
