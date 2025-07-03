@@ -38,6 +38,15 @@ class Settings(BaseSettings):
                                         extra="allow"
                                     )
     
+    google_api_key: str
+    neo4j_uri: str
+    neo4j_username: str
+    neo4j_password: str
+    admin_username: str
+    admin_password: str
+    jwt_secret_key: str
+    algorithm: str
+    
     # Configuration sections
     llm: LLMConfig = Field(default_factory=LLMConfig)
     fastapi: FastAPIConfig = Field(default_factory=FastAPIConfig)
