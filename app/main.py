@@ -77,7 +77,10 @@ def create_app() -> FastAPI:
                 title="StarCraft 2 Editor AI Backend",
                 description="Backend API for StarCraft 2 Editor AI with Gemini integration",
                 version="1.0.0",
-                lifespan=lifespan
+                lifespan=lifespan,
+                openapi_url=None,
+                docs_url=None,
+                redoc_url=None,
             )
     app.container = container
 
