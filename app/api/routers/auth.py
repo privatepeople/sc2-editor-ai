@@ -26,6 +26,7 @@ async def login_for_access_token(
                                     response: Response,
                                     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
                                     access_token_expire: Annotated[int, Depends(Provide[Container.config.fastapi.access_token_expire])],
+                                    https_status: Annotated[bool, Depends(Provide[Container.config.fastapi.https_status])],
                                     app_logging: Annotated[ApplicationLogging, Depends(Provide[Container.app_logging])],
                                 ):
     """
@@ -35,6 +36,7 @@ async def login_for_access_token(
         response: FastAPI Response object to set jwt access token
         form_data: OAuth2PasswordRequestForm containing username and password
         access_token_expire: Expiration time for access token in minutes
+        https_status: Boolean variable indicating whether to apply https or not
         app_logging: Application logging instance
     """
     logger = app_logging.logger
@@ -55,8 +57,8 @@ async def login_for_access_token(
     response.set_cookie(
                         key="session_token",
                         value=access_token,
-                        httponly=True,  # Prevent JavaScript access
-                        secure=False,   # Set to True in production with HTTPS
+                        httponly=True, # Prevent JavaScript access
+                        secure=https_status, # Set to True in production with HTTPS
                         samesite="lax", # CSRF protection
                     )
     

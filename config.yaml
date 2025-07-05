@@ -10,3 +10,4 @@ fastapi:
   conversation_timeout: 3 # (minutes) Be sure to change the value later!
   conversation_timeout_period: 60 # (seconds)
   access_token_expire: 60 # (minutes)
+  https_status: false # Whether https applies. Set to true in production with HTTPS

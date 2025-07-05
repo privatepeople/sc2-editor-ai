@@ -26,6 +26,7 @@ class FastAPIConfig(BaseModel):
     conversation_timeout: int = Field(default=60, ge=1, description="Conversation timeout(minutes)")
     conversation_timeout_period: int = Field(default=60, ge=1, description="Period to check conversation timeout(seconds)")
     access_token_expire: int = Field(default=60, ge=1, description="Time left until ACCESS TOKEN expires(minutes)")
+    https_status: bool = Field(default=False, description="Boolean variable indicating whether to apply https or not")
 
 
 class Settings(BaseSettings):
