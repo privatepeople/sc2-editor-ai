@@ -7,8 +7,8 @@ from contextlib import asynccontextmanager
 # Dependency Injection imports
 from dependency_injector.wiring import Provide, inject
 # FastAPI imports
-import uvicorn
 from fastapi import FastAPI, Request
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -25,7 +25,7 @@ from app.api.routers.auth import authentication_router
 from app.api.routers.conversations import conversations_router
 from app.api.routers.chat import chat_router
 from app.api.routers.health import health_router
-from app.middleware import global_limiter
+from app.middleware import SecurityHeadersMiddleware, global_limiter
 # StarCraft 2 Editor AI imports
 from sc2editor.llm import SC2EditorLLM
 
@@ -84,7 +84,10 @@ def create_app() -> FastAPI:
             )
     app.container = container
 
-    # Configure CORS
+    # Configure middleware
+    if container.config()["fastapi"]["https_status"]:
+        app.add_middleware(HTTPSRedirectMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(
                             CORSMiddleware,
                             allow_origins=["*"],  # In production, specify your frontend domain
@@ -122,6 +125,6 @@ def create_app() -> FastAPI:
     # Public endpoints (no authentication required)
     @app.get("/favicon.ico", include_in_schema=False)
     async def favicon():
-        return FileResponse("static/favicon.ico")
+        return FileResponse(static_dir / "favicon.ico")
 
     return app
