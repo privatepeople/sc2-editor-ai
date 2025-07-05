@@ -8,6 +8,7 @@ dependencies = [
     "aiofiles>=24.1.0",
     "asyncio-mqtt>=0.16.2",
     "bcrypt>=4.3.0",
+    "dependency-injector>=4.48.1",
     "fastapi[standard]>=0.115.12",
     "langchain>=0.3.25",
     "langchain-community>=0.3.25",

@@ -8,7 +8,7 @@ Note that after finishing the LLM answer, you must initialize the graph state wi
 
 # Python Standard Library imports
 from math import floor
-from typing import Annotated, Optional, Union, Literal, TypedDict, AsyncIterator, Any
+from typing import Annotated, Literal, TypedDict, AsyncIterator, Any
 
 # Third-party Library imports
 from pydantic import BaseModel, Field
@@ -20,7 +20,6 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langchain_neo4j import Neo4jGraph, Neo4jVector
 
 # Custom Library imports
-from config import get_settings
 from sc2editor.llm.system_prompts import *
 
 
@@ -40,7 +39,7 @@ class Entities(BaseModel):
 
 
 class AnswerJudgment(BaseModel):
-    "This is a model that determines whether an answer is possible based on the conversation history up to this point and the given context."
+    """A model that determines whether an answer is possible based on the conversation history up to this point and the given context."""
     answer_status: Literal['yes', 'no'] = Field(
                                                     description="Status to check whether or not an answer can be given with the given information."
                                                 )
@@ -62,10 +61,10 @@ class State(TypedDict):
 class SC2EditorLLM:
     """SC2 Editor LLM system that handles database connections, retrieval, and conversation processing."""
     
-    def __init__(self, neo4j_uri: Optional[str] = None, neo4j_username: Optional[str] = None, neo4j_password: Optional[str] = None,
-                 model: Optional[str] = None, embedding: Optional[str] = None,
-                 maximum_information_acquisition_rate: Optional[Union[int, float]] = None, maximum_retriever_attempts: Optional[int] = None,
-                 timeout: Optional[Union[int, float]] = None):
+    def __init__(self, neo4j_uri: str, neo4j_username: str, neo4j_password: str,
+                 model: str, embedding: str,
+                 maximum_information_acquisition_rate: int | float = 0.15, maximum_retriever_attempts: int = 2,
+                 timeout: int | float = 30.0):
         """
         Initialize the SC2EditorLLM with database connections and models.
         
@@ -79,15 +78,14 @@ class SC2EditorLLM:
             maximum_retriever_attempts: Maximum of retriever attempts
             timeout: Timeout for LLM requests in seconds
         """
-        settings = get_settings()
-        self.neo4j_uri = neo4j_uri or settings.neo4j_uri
-        self.neo4j_username = neo4j_username or settings.neo4j_username
-        self.neo4j_password = neo4j_password or settings.neo4j_password
-        self.model = model or settings.llm.model
-        self.embedding = embedding or settings.llm.embedding
-        self.maximum_information_acquisition_rate = maximum_information_acquisition_rate or settings.llm.maximum_information_acquisition_rate
-        self.maximum_retriever_attempts = maximum_retriever_attempts or settings.llm.maximum_retriever_attempts
-        self.timeout = timeout or settings.llm.timeout
+        self.neo4j_uri = neo4j_uri
+        self.neo4j_username = neo4j_username
+        self.neo4j_password = neo4j_password
+        self.model = model
+        self.embedding = embedding
+        self.maximum_information_acquisition_rate = maximum_information_acquisition_rate
+        self.maximum_retriever_attempts = maximum_retriever_attempts
+        self.timeout = timeout
         
         # Initialize connections
         self.neo4j_graph = None
@@ -363,7 +361,7 @@ class SC2EditorLLM:
         Returns:
             Conversation history converted to text
         """
-        formatted_messages = []
+        formatted_messages = list()
 
         for msg in messages:
             if isinstance(msg, HumanMessage):

@@ -4,7 +4,7 @@ from functools import lru_cache
 
 # Third-party Library imports
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, IPvAnyAddress
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Custom Library imports
@@ -46,7 +46,9 @@ class Settings(BaseSettings):
     admin_password: str
     jwt_secret_key: str
     algorithm: str
-    
+    uvicorn_host: IPvAnyAddress = Field(default="127.0.0.1", description="Uvicorn server host")
+    uvicorn_port: int = Field(default=8080, ge=1, le=65535, description="Uvicorn server port")
+
     # Configuration sections
     llm: LLMConfig = Field(default_factory=LLMConfig)
     fastapi: FastAPIConfig = Field(default_factory=FastAPIConfig)

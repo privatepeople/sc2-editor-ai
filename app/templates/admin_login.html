@@ -4,18 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login Page</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: "Inter", sans-serif;
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
             background-color: #f0f2f5;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            margin: 0;
         }
+
         .login-container {
             background-color: #ffffff;
             padding: 2.5rem;
@@ -24,6 +28,27 @@
             width: 100%;
             max-width: 400px;
         }
+
+        .login-title {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #1f2937;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 0.5rem;
+        }
+
         .input-field {
             width: 100%;
             padding: 0.75rem 1rem;
@@ -31,12 +56,14 @@
             border-radius: 0.5rem;
             font-size: 1rem;
             outline: none;
-            transition: border-color 0.2s;
+            transition: border-color 0.2s, box-shadow 0.2s;
         }
+
         .input-field:focus {
             border-color: #3b82f6;
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
         }
+
         .login-button {
             width: 100%;
             padding: 0.75rem 1rem;
@@ -49,43 +76,55 @@
             cursor: pointer;
             transition: background-color 0.2s, transform 0.1s;
         }
+
         .login-button:hover:not(:disabled) {
             background-color: #2563eb;
             transform: translateY(-1px);
         }
+
         .login-button:active:not(:disabled) {
             transform: translateY(0);
         }
+
         .login-button:disabled {
             background-color: #9cbfee;
             cursor: not-allowed;
         }
+
         .message-box {
-            background-color: #fee2e2;
-            color: #ef4444;
             padding: 0.75rem 1rem;
             border-radius: 0.5rem;
-            margin-top: 1rem;
+            margin-bottom: 1rem;
             text-align: center;
             font-size: 0.875rem;
             display: none;
+        }
+
+        .message-error {
+            background-color: #fee2e2;
+            color: #ef4444;
+        }
+
+        .message-success {
+            background-color: #d1fae5;
+            color: #065f46;
         }
     </style>
 </head>
 <body>
     <div class="login-container">
-        <h2 class="text-3xl font-extrabold text-gray-900 mb-6 text-center">Login</h2>
-        <form id="loginForm" class="space-y-6">
-            <div>
-                <label for="username" class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+        <h2 class="login-title">Login</h2>
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="username" class="form-label">Username</label>
                 <input type="text" id="username" name="username" class="input-field" placeholder="Enter your username" required>
             </div>
-            <div>
-                <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <div class="form-group">
+                <label for="password" class="form-label">Password</label>
                 <input type="password" id="password" name="password" class="input-field" placeholder="Enter your password" required>
             </div>
             <div id="messageBox" class="message-box"></div>
-            <div>
+            <div class="form-group">
                 <button type="submit" id="loginButton" class="login-button">Login</button>
             </div>
         </form>
@@ -96,15 +135,11 @@
         class SessionManager {
             static TOKEN_KEY = 'access_token';
             static TOKEN_TYPE_KEY = 'token_type';
-            static EXPIRY_KEY = 'expires_in';
 
-            static setSession(token, tokenType, expiresIn) {
-                const expiryTime = Date.now() + (expiresIn * 1000); // Convert seconds to milliseconds
-                
+            static setSession(token, tokenType) {
                 // Store in sessionStorage for persistence
                 sessionStorage.setItem(this.TOKEN_KEY, token);
                 sessionStorage.setItem(this.TOKEN_TYPE_KEY, tokenType);
-                sessionStorage.setItem(this.EXPIRY_KEY, expiryTime.toString());
                 
                 // Also set in window object for immediate use
                 window.access_token = token;
@@ -114,29 +149,20 @@
             static getSession() {
                 const token = sessionStorage.getItem(this.TOKEN_KEY);
                 const tokenType = sessionStorage.getItem(this.TOKEN_TYPE_KEY);
-                const expiry = sessionStorage.getItem(this.EXPIRY_KEY);
 
-                if (!token || !tokenType || !expiry) {
-                    return null;
-                }
-
-                // Check if token has expired
-                if (Date.now() > parseInt(expiry)) {
-                    this.clearSession();
+                if (!token || !tokenType) {
                     return null;
                 }
 
                 return {
                     token,
-                    tokenType,
-                    expiry: parseInt(expiry)
+                    tokenType
                 };
             }
 
             static clearSession() {
                 sessionStorage.removeItem(this.TOKEN_KEY);
                 sessionStorage.removeItem(this.TOKEN_TYPE_KEY);
-                sessionStorage.removeItem(this.EXPIRY_KEY);
                 
                 // Also clear from window object
                 delete window.access_token;
@@ -151,15 +177,7 @@
                 const session = this.getSession();
                 if (!session) return null;
                 
-                // Return the full Authorization header value
                 return `${session.tokenType} ${session.token}`;
-            }
-
-            static getRemainingTime() {
-                const session = this.getSession();
-                if (!session) return 0;
-                
-                return Math.max(0, session.expiry - Date.now());
             }
         }
 
@@ -199,27 +217,24 @@
                 formData.append('password', password);
 
                 try {
-                    // Make the fetch call to the correct login endpoint
                     const response = await fetch('/token', {
                         method: 'POST',
-                        body: formData  // Send as form data, not JSON
+                        body: formData
                     });
 
                     if (response.ok) {
                         const data = await response.json();
                         
-                        // Store the session data with expiration
-                        const expiresIn = data.expires_in || 3600; // Default to 1 hour if not provided
-                        SessionManager.setSession(data.access_token, data.token_type, expiresIn);
+                        // Store the session data
+                        SessionManager.setSession(data.access_token, data.token_type);
                         
                         showMessage('Login successful! Redirecting...', 'success');
                         
-                        // Keep button disabled after successful login
                         loginButton.textContent = 'Redirecting...';
                         
                         // Redirect after a short delay
                         setTimeout(() => {
-                            window.location.href = '/'; // Redirect to root or dashboard
+                            window.location.href = '/';
                         }, 1500);
                         
                     } else {
@@ -234,7 +249,7 @@
                         
                         showMessage(errorMessage, 'error');
                         
-                        // Only re-enable button on error
+                        // Re-enable button on error
                         loginButton.disabled = false;
                         loginButton.textContent = 'Login';
                     }
@@ -242,66 +257,32 @@
                     console.error('Error during login:', error);
                     showMessage('Login failed. Please ensure the backend server is running and accessible.', 'error');
                     
-                    // Only re-enable button on error
+                    // Re-enable button on error
                     loginButton.disabled = false;
                     loginButton.textContent = 'Login';
                 }
             });
 
-            /**
-             * Displays a message in the message box.
-             * @param {string} message - The message to display.
-             * @param {'success'|'error'} type - The type of message.
-             */
             function showMessage(message, type) {
                 messageBox.textContent = message;
+                messageBox.className = `message-box message-${type}`;
                 messageBox.style.display = 'block';
-                if (type === 'error') {
-                    messageBox.style.backgroundColor = '#fee2e2';
-                    messageBox.style.color = '#ef4444';
-                } else if (type === 'success') {
-                    messageBox.style.backgroundColor = '#d1fae5';
-                    messageBox.style.color = '#065f46';
-                }
             }
-
-            // Periodically check token expiration
-            setInterval(() => {
-                if (SessionManager.isLoggedIn()) {
-                    const remainingTime = SessionManager.getRemainingTime();
-                    
-                    // If less than 5 minutes remaining, show warning
-                    if (remainingTime < 5 * 60 * 1000 && remainingTime > 0) {
-                        console.warn('Token will expire soon. Consider refreshing.');
-                    }
-                    
-                    // If token has expired, clear session and redirect to login
-                    if (remainingTime <= 0) {
-                        SessionManager.clearSession();
-                        showMessage('Session expired. Please log in again.', 'error');
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 2000);
-                    }
-                }
-            }, 60000); // Check every minute
         });
 
         // Global utility functions for other pages to use
         window.SessionManager = SessionManager;
 
-        // Fixed authenticated fetch function
         window.authenticatedFetch = async function(url, options = {}) {
             const session = SessionManager.getSession();
             if (!session) {
                 throw new Error('Not authenticated');
             }
 
-            // Prepare headers
             const headers = {
                 'Content-Type': 'application/json',
                 ...options.headers,
-                'Authorization': `${session.tokenType} ${session.token}` // Fixed: Proper format
+                'Authorization': `${session.tokenType} ${session.token}`
             };
 
             try {
@@ -310,7 +291,6 @@
                     headers
                 });
 
-                // Check if token has expired (401 Unauthorized)
                 if (response.status === 401) {
                     SessionManager.clearSession();
                     throw new Error('Session expired. Please log in again.');
@@ -318,12 +298,10 @@
 
                 return response;
             } catch (error) {
-                // If it's a network error or other issue, re-throw
                 throw error;
             }
         };
 
-        // Auto-logout on token expiration (for other pages)
         window.checkAuthStatus = function() {
             if (!SessionManager.isLoggedIn()) {
                 window.location.href = '/admin_login.html';
