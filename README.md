@@ -20,7 +20,7 @@ This project is an **LLM-powered assistant for the StarCraft 2 Editor**, built u
 
 ## Requirements
 
-* **Python**: 3.12 or higher
+* **Python**: 3.12 or higher  
   It is recommended to use `uv` for package and project management.
 * **Google Gemini API KEY**
 * **Neo4j AuraDB Instance**
