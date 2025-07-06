@@ -1,6 +1,6 @@
 # StarCraft 2 Editor AI
 
-This project is an **LLM-powered assistant for the StarCraft 2 Editor**, built using [Google Gemini](https://ai.google.dev/gemini-api/docs).
+This project is an **LLM-powered assistant for the StarCraft 2 Editor**, built using [Google Gemini API Free Tier](https://ai.google.dev/gemini-api/docs).
 
 ---
 
@@ -46,7 +46,7 @@ Refer to each service's official documentation for installation and setup instru
 
 ---
 
-## Environment Configuration
+## Environment Variables Configuration
 
 Create a `.env` file in the **root directory** with the following structure:
 
@@ -88,7 +88,7 @@ python -m database/graph_database.py
 python -m database/embedding_property.py
 ```
 
-**※ Warning**: <ins>Building a Neo4j graph database this way costs real money because it uses Gemini. I used about 890k tokens based on gemini-2.0-flash.</ins>
+**※ Warning**: <ins>Building a Neo4j graph database this way costs real money because it uses Gemini API. I used about 890k tokens based on gemini-2.0-flash and text-embedding-004.</ins>
 
 ---
 
