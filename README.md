@@ -100,6 +100,9 @@ From the root directory:
 python main.py
 ```
 
+When the host is 127.0.0.1 and the port is 8000, if you enter the URL as 127.0.0.1:8000, the webpage will appear.
+If you need to log in as an administrator, add the path as \admin.
+
 The locations of the data used in this project are as follows. When adding data later, you can use the same locations.
 At this time, the extension must be .md, which is a Markdown extension.
 
