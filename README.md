@@ -4,6 +4,14 @@ This project is an **LLM-powered assistant for the StarCraft 2 Editor**, built u
 
 ---
 
+## LLM Architecture
+
+A detailed graph of a **single-agent architecture** using LangGraph is shown in the image below.
+
+![LLM Architecture](./graph.png)
+
+---
+
 ## Overview
 
 * **Tech Stack**:
@@ -15,6 +23,16 @@ This project is an **LLM-powered assistant for the StarCraft 2 Editor**, built u
   * **Backend**: FastAPI, Uvicorn, SlowApi
   * **LLM**: LangChain, LangGraph
   * **Graph Database**: Neo4j AuraDB
+
+---
+
+## Features
+
+* **logging**: Process tracking based on logging
+* **API access control via login**: APIs that clients should not access can only be used by logging in.
+* **Asynchronous Streaming**: When multiple requests occur at the same time, the response is not delayed asynchronously, and the client's request is responded to through streaming.
+* **Global API limits**: Control the total usage per minute of specific APIs based on the value of api_limit set in config.yaml.
+* **Conversation history background task**: A background task that deletes conversation history from memory that is older than the conversation_timeout set in config.yaml.
 
 ---
 
@@ -72,14 +90,6 @@ python -m database/embedding_property.py
 ```
 
 **※ Warning**: <ins>Building a Neo4j graph database this way costs real money because it uses Gemini. I used about 890k tokens based on gemini-2.0-flash.</ins>
-
----
-
-## LLM Architecture
-
-A detailed graph of a **single-agent architecture** using LangGraph is shown in the image below.
-
-![LLM Architecture](./graph.png)
 
 ---
 
