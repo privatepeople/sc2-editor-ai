@@ -16,13 +16,8 @@ if __name__ == "__main__":
     app = create_app()
 
     import platform
-    if platform.system() == 'Windows':
+
+    if platform.system() == "Windows":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-    uvicorn.run(
-                    app,
-                    host=host,
-                    port=port,
-                    reload=False,
-                    log_level="info"
-                )
+    uvicorn.run(app, host=host, port=port, reload=False, log_level="info")

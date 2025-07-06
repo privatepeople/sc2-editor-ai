@@ -14,6 +14,7 @@ protocol = "https" if settings.fastapi.https_status else "http"
 host = str(settings.uvicorn_host)
 port = settings.uvicorn_port
 
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         response = await call_next(request)

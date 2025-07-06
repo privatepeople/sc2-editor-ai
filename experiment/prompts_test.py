@@ -9,7 +9,8 @@ from langchain_core.messages import HumanMessage
 from sc2editor.llm import SC2EditorLLM
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+
     async def test():
         async with SC2EditorLLM() as llm:
             thread_id = "sc2"
@@ -25,12 +26,14 @@ if __name__ == '__main__':
                 "Please tell me how to make a marine spawn on the map every second, and separately print out the total number of marines on the map as text every 5 seconds.",
                 "Please tell me how to kill a mutalisk by clicking on it 5 times using data editor in the game.",
                 "Please tell me how to add an aura to marine that increases the movement speed of surrounding units.",
-                "Please tell me how to control units with the wasd keys on the keyboard."
+                "Please tell me how to control units with the wasd keys on the keyboard.",
             ]
             prompt = choice(prompts)
 
-            async for msg, metadata in llm.astream({'messages': [HumanMessage(prompt)]}, thread_id=thread_id):
-                if metadata['langgraph_node'] in ('answer_node', 'disallow_node'):
+            async for msg, metadata in llm.astream(
+                {"messages": [HumanMessage(prompt)]}, thread_id=thread_id
+            ):
+                if metadata["langgraph_node"] in ("answer_node", "disallow_node"):
                     print(msg.content, end="", flush=True)
             llm.delete_thread_id(thread_id=thread_id)
 

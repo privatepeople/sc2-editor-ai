@@ -22,7 +22,7 @@ from config import get_settings
 def main(embedding: str, url: str, username: str, password: str):
     """
     Main Function to add embedding properties to Neo4j Database.
-    
+
     Args:
         embedding: Gemini Embedding Model
         url: Neo4j Database URL
@@ -31,17 +31,22 @@ def main(embedding: str, url: str, username: str, password: str):
     """
     # Add embedding property
     Neo4jVector.from_existing_graph(
-                                    GoogleGenerativeAIEmbeddings(model=embedding),
-                                    search_type="hybrid",
-                                    node_label="Document",
-                                    text_node_properties=["text"],
-                                    embedding_node_property="embedding",
-                                    url=url,
-                                    username=username,
-                                    password=password,
-                                )
+        GoogleGenerativeAIEmbeddings(model=embedding),
+        search_type="hybrid",
+        node_label="Document",
+        text_node_properties=["text"],
+        embedding_node_property="embedding",
+        url=url,
+        username=username,
+        password=password,
+    )
 
 
 if __name__ == "__main__":
     settings = get_settings()
-    main(embedding=settings.llm.embedding, url=settings.neo4j_uri, username=settings.neo4j_username, password=settings.neo4j_password)
+    main(
+        embedding=settings.llm.embedding,
+        url=settings.neo4j_uri,
+        username=settings.neo4j_username,
+        password=settings.neo4j_password,
+    )

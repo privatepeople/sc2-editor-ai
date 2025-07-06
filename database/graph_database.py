@@ -20,33 +20,35 @@ from config import get_settings
 from sc2editor.text_splitters import markdown_load_split
 
 
-def setup_llm_and_transformer(model: str) -> tuple[ChatGoogleGenerativeAI, LLMGraphTransformer]:
+def setup_llm_and_transformer(
+    model: str,
+) -> tuple[ChatGoogleGenerativeAI, LLMGraphTransformer]:
     """
     Function to set up LLM and Graph Transformer objects.
 
     Args:
         model: Gemini LLM Model
-    
+
     Returns:
         Returns a tuple of LLM and GraphTransformers that use the LLM.
     """
     llm = ChatGoogleGenerativeAI(model=model, temperature=0)
     llm_transformer = LLMGraphTransformer(llm=llm)
-    
+
     return llm, llm_transformer
 
 
 def query_database_stats(graph: Neo4jGraph) -> tuple[dict[str, int], dict[str, int]]:
     """
     A function that sends a query to a neo4j graph database and returns statistics.
-    
+
     Args:
         graph: Neo4j Database
-    
+
     Returns:
         Returns the number of total nodes and the number of total relationships as a tuple.
         The elements of a tuple are organized as follows:
-        
+
         ({'TotalNodes': Total number of nodes}, {'TotalRelationships': Total number of relationships})
     """
     # Query total number of nodes
@@ -62,7 +64,7 @@ def query_database_stats(graph: Neo4jGraph) -> tuple[dict[str, int], dict[str, i
     RETURN count(r) AS TotalRelationships;
     """
     relationship_result = graph.query(relationship_count_query)[0]
-    
+
     return node_result, relationship_result
 
 
@@ -70,7 +72,7 @@ def query_database_stats(graph: Neo4jGraph) -> tuple[dict[str, int], dict[str, i
 def main(model: str, url: str, username: str, password: str):
     """
     Main Function to split text in Markdown document and add it to Neo4j Database.
-    
+
     Args:
         model: Gemini LLM Model
         url: Neo4j Database URL
@@ -79,26 +81,24 @@ def main(model: str, url: str, username: str, password: str):
     """
     # Set up LLM and Graph Transformer
     llm, llm_transformer = setup_llm_and_transformer(model=model)
-    
+
     # Load and preprocess documents
     documents = markdown_load_split()
-    
+
     # Convert Langchain Documents to Graph Documents
     graph_documents = llm_transformer.convert_to_graph_documents(documents)
-    
+
     # Get Neo4j credentials and create connection
     graph = Neo4jGraph(url, username, password)
-    
+
     # Add Graph Documents to Graph Database
     graph.add_graph_documents(
-                                graph_documents=graph_documents,
-                                include_source=True,
-                                baseEntityLabel=True
-                            )
-    
+        graph_documents=graph_documents, include_source=True, baseEntityLabel=True
+    )
+
     # Query and display statistics
     node_result, relationship_result = query_database_stats(graph)
-    
+
     print()
     print("Number of total nodes: ", node_result["TotalNodes"])
     print("Number of total relationships: ", relationship_result["TotalRelationships"])
@@ -109,4 +109,9 @@ def main(model: str, url: str, username: str, password: str):
 
 if __name__ == "__main__":
     settings = get_settings()
-    main(model=settings.llm.model, url=settings.neo4j_uri, username=settings.neo4j_username, password=settings.neo4j_password)
+    main(
+        model=settings.llm.model,
+        url=settings.neo4j_uri,
+        username=settings.neo4j_username,
+        password=settings.neo4j_password,
+    )

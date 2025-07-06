@@ -15,7 +15,7 @@ from langchain_text_splitters import ExperimentalMarkdownSyntaxTextSplitter
 def markdown_load_split() -> list[Document]:
     """
     Function that loads markdown files, splits text based on markdown grammar, and returns a list of Langchain Documents.
-    
+
     Returns:
         Returns a list of LangChain Documents split by Markdown syntax.
     """
@@ -34,15 +34,21 @@ def markdown_load_split() -> list[Document]:
             for markdown_file in Path(tutorial_dir).iterdir():
                 if markdown_file.is_file() and markdown_file.suffix == ".md":
                     markdown_file_name = markdown_file.name
-                    with open(markdown_file, 'r', encoding='utf-8') as f:
+                    with open(markdown_file, "r", encoding="utf-8") as f:
                         markdown_text = f.read()
 
                     # Split text based on markdown syntax
-                    markdown_split_result = ExperimentalMarkdownSyntaxTextSplitter().split_text(markdown_text)
+                    markdown_split_result = (
+                        ExperimentalMarkdownSyntaxTextSplitter().split_text(
+                            markdown_text
+                        )
+                    )
                     # Add metadata to each result
                     for order, markdown_res in enumerate(markdown_split_result):
                         markdown_res.metadata["page_content_order"] = order
-                        markdown_res.metadata["source"] = f"https://s2editor-guides.readthedocs.io/New_Tutorials/{dir_name}/{markdown_file_name[:-3]}/"
+                        markdown_res.metadata["source"] = (
+                            f"https://s2editor-guides.readthedocs.io/New_Tutorials/{dir_name}/{markdown_file_name[:-3]}/"
+                        )
                         markdown_res.metadata["languages"] = ["eng"]
                         markdown_res.metadata["file_directory"] = str(dir_name)
                         markdown_res.metadata["filename"] = str(markdown_file_name)
@@ -50,7 +56,9 @@ def markdown_load_split() -> list[Document]:
 
                     # Add the result to documents
                     documents.extend(markdown_split_result)
-                    print(f"Loaded {len(markdown_split_result)} documents from {markdown_file_name} in {dir_name}")
+                    print(
+                        f"Loaded {len(markdown_split_result)} documents from {markdown_file_name} in {dir_name}"
+                    )
 
     print(f"Total documents loaded: {len(documents)}")
     return documents
