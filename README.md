@@ -1,6 +1,6 @@
 # StarCraft 2 Editor AI
 
-This project is an **LLM-powered assistant for the StarCraft 2 Editor**, built using [Google Gemini](https://ai.google.dev).
+This project is an **LLM-powered assistant for the StarCraft 2 Editor**, built using [Google Gemini](https://ai.google.dev/gemini-api/docs).
 
 ---
 
