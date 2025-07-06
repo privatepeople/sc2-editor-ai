@@ -12,17 +12,16 @@ A detailed graph of a **single-agent architecture** using LangGraph is shown in 
 
 ---
 
-## Overview
+## Tech Stack
 
-* **Tech Stack**:
-  * **Package/Project Management**: uv
-  * **Linting/Formatting**: Ruff
-  * **Configuration**: PyYAML, Pydantic Settings
-  * **Dependency Injection**: Dependency Injector
-  * **Security**: bcrypt, PyJWT
-  * **Backend**: FastAPI, Uvicorn, SlowApi
-  * **LLM**: LangChain, LangGraph
-  * **Graph Database**: Neo4j AuraDB
+* **Package/Project Management**: uv
+* **Linting/Formatting**: Ruff
+* **Configuration**: PyYAML, Pydantic Settings
+* **Dependency Injection**: Dependency Injector
+* **Security**: bcrypt, PyJWT
+* **Backend**: FastAPI, Uvicorn, SlowApi
+* **LLM**: LangChain, LangGraph
+* **Graph Database**: Neo4j AuraDB
 
 ---
 
