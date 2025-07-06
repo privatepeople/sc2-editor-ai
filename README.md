@@ -4,7 +4,7 @@ This project is an **LLM-powered assistant for the StarCraft 2 Editor**, built u
 
 ---
 
-## 🧠 Overview
+## Overview
 
 * **Tech Stack**:
   * **Package/Project Management**: uv
@@ -18,18 +18,18 @@ This project is an **LLM-powered assistant for the StarCraft 2 Editor**, built u
 
 ---
 
-## 🧰 Requirements
+## Requirements
 
 * **Python**: 3.12 or higher
   It is recommended to use `uv` for package and project management.
-* **Google Gemini API Access**
+* **Google Gemini API KEY**
 * **Neo4j AuraDB Instance**
 
 Refer to each service's official documentation for installation and setup instructions.
 
 ---
 
-## ⚙️ Environment Configuration
+## Environment Configuration
 
 Create a `.env` file in the **root directory** with the following structure:
 
@@ -60,11 +60,11 @@ LANGCHAIN_API_KEY=
 
 ---
 
-## 🏗️ Database Initialization
+## Database Initialization
 
 1. Create a Neo4j AuraDB instance.
 2. Ensure your `.env` file contains the correct Neo4j credentials.
-3. Run the following scripts from the `database/` directory to build the graph database:
+3. Run the following scripts to build the graph database:
 
 ```bash
 python -m database/graph_database.py
@@ -73,7 +73,7 @@ python -m database/embedding_property.py
 
 ---
 
-## 🧹 LLM Architecture
+## LLM Architecture
 
 A detailed graph of a **single-agent architecture** using LangGraph is shown in the image below.
 
@@ -81,7 +81,7 @@ A detailed graph of a **single-agent architecture** using LangGraph is shown in 
 
 ---
 
-## 🚀 How to Run
+## How to Run
 
 From the root directory:
 
@@ -98,7 +98,7 @@ sc2editor/datas/new_tutorials/
 
 ---
 
-## 📚 Data Sources
+## Data Sources
 
 The sources of data used in this project are as follows:
 
