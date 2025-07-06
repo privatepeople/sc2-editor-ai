@@ -71,7 +71,7 @@ python -m database/graph_database.py
 python -m database/embedding_property.py
 ```
 
-<ins>**※ Warning**: Building a Neo4j graph database this way costs real money because it uses Gemini. I used about 890k tokens based on gemini-2.0-flash.</ins>
+**※ Warning**: <ins>Building a Neo4j graph database this way costs real money because it uses Gemini. I used about 890k tokens based on gemini-2.0-flash.</ins>
 
 ---
 
