@@ -780,7 +780,6 @@
                 this.isFirstMessage = true;
                 this.messages = []; // Store conversation history
                 this.conversationId = null;
-                this.apiBaseUrl = 'http://127.0.0.1:8080';
                 this.isLoading = false;
                 this.currentStreamingMessage = null;
                 
@@ -883,7 +882,7 @@
                         content: msg.content
                     }));
                     
-                    const response = await fetch(`${this.apiBaseUrl}/chat/stream`, {
+                    const response = await fetch(`/chat/stream`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -1251,7 +1250,7 @@
                 if (this.conversationId) {
                     try {
                         // Use sendBeacon for reliable delivery during page unload
-                        const url = `${this.apiBaseUrl}/conversations/delete/${this.conversationId}`;
+                        const url = `/conversations/delete/${this.conversationId}`;
                         
                         // sendBeacon is preferred for unload events as it's more reliable
                         if (navigator.sendBeacon) {
@@ -1259,7 +1258,7 @@
                             console.debug('sendBeacon result:', success);
                         } else {
                             // Fallback for browsers that don't support sendBeacon
-                            fetch(`${this.apiBaseUrl}/conversations/${this.conversationId}`, {
+                            fetch(`/conversations/${this.conversationId}`, {
                                 method: 'DELETE',
                                 keepalive: true // Keeps request alive during page unload
                             }).catch(error => {
