@@ -1,1 +1,1 @@
-from .markdown_splitter import markdown_load_split
+from .markdown_splitter import markdown_load_split as markdown_load_split

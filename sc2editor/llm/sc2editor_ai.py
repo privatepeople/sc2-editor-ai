@@ -20,7 +20,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langchain_neo4j import Neo4jGraph, Neo4jVector
 
 # Custom Library imports
-from sc2editor.llm.system_prompts import *
+from sc2editor.llm.system_prompts import (ROUTER_SYSTEM_PROMPT, ENTITY_EXTRACTION_SYSTEM_PROMPT, RETRIEVER_QUERY_SYSTEM_PROMPT, CONTEXT_CLEANUP_SYSTEM_PROMPT, ANSWER_JUDGMENT_SYSTEM_PROMPT, SC2_EDITOR_AI_SYSTEM_PROMPT, DISALLOW_PROMPT)
 
 
 class Router(BaseModel):

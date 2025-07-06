@@ -30,16 +30,16 @@ def main(embedding: str, url: str, username: str, password: str):
         password: The password of Neo4j Database account
     """
     # Add embedding property
-    vector_index = Neo4jVector.from_existing_graph(
-                                                    GoogleGenerativeAIEmbeddings(model=embedding),
-                                                    search_type="hybrid",
-                                                    node_label="Document",
-                                                    text_node_properties=["text"],
-                                                    embedding_node_property="embedding",
-                                                    url=url,
-                                                    username=username,
-                                                    password=password,
-                                                )
+    Neo4jVector.from_existing_graph(
+                                    GoogleGenerativeAIEmbeddings(model=embedding),
+                                    search_type="hybrid",
+                                    node_label="Document",
+                                    text_node_properties=["text"],
+                                    embedding_node_property="embedding",
+                                    url=url,
+                                    username=username,
+                                    password=password,
+                                )
 
 
 if __name__ == "__main__":

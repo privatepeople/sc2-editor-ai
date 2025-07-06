@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 def send_request(conversation_id: str):
     prompt = "Can you tell me what kind of AI you are?"
-    response = requests.post(f"http://127.0.0.1:8080/chat/stream", json={
+    response = requests.post("http://127.0.0.1:8080/chat/stream", json={
                                                                             "message": prompt,
                                                                             "conversation_id": conversation_id,
                                                                             "history": [
