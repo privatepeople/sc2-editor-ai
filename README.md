@@ -100,7 +100,7 @@ From the root directory:
 python main.py
 ```
 
-When the host is 127.0.0.1 and the port is 8000, if you enter the URL as 127.0.0.1:8000, the webpage will appear.
+For example, if you want to test locally, set UVICORN_HOST=127.0.0.1 and UVICORN_PORT=8000, then go to 127.0.0.1:8000 and you will see the webpage.
 If you need to log in as an administrator, add the path as \admin.
 
 The locations of the data used in this project are as follows. When adding data later, you can use the same locations.
