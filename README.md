@@ -4,11 +4,11 @@ This project is an **LLM-powered assistant for the StarCraft 2 Editor**, built u
 
 ---
 
-## LLM Architecture
+## Agent Architecture
 
 A detailed graph of a **single-agent architecture** using LangGraph is shown in the image below.
 
-![LLM Architecture](./graph.png)
+![Agent Architecture](./graph.png)
 
 ---
 
